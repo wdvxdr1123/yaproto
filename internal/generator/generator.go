@@ -140,9 +140,7 @@ func (g *Generator) generate() {
 		g.Pln("type ", m.GoType(), " struct {")
 		for _, f := range m.Fields {
 			switch f.Option {
-			case FNone:
-				g.Pf("%s %s `protobuf:\"%d\"`\n", f.GoName(), f.GoType(), f.Sequence)
-			case FRepeated:
+			case FNone, FRepeated:
 				g.Pf("%s %s `protobuf:\"%d\"`\n", f.GoName(), f.GoType(), f.Sequence)
 			case FRequired:
 				g.Pf("%s %s `protobuf:\"%d,req\"`\n", f.GoName(), f.GoType(), f.Sequence)
@@ -181,6 +179,8 @@ func (g *Generator) size(m *Message) {
 	g.Pln("    if x == nil {")
 	g.Pln("        return 0")
 	g.Pln("    }")
+	g.Pln("    var l int")
+	g.Pln("    _ = l")
 
 	var repeated bool
 	fixed := func(size int, field *Field) {
@@ -231,21 +231,33 @@ func (g *Generator) size(m *Message) {
 			case WireBytes:
 				if repeated {
 					g.Pf("for _, b := range x.%s {\n", field.GoName())
-					g.Pln("    l := len(b)")
+					g.Pln("    l = len(b)")
 					g.Pf("     n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
 					g.Pln("}")
 				} else if g.Proto3() {
-					g.Pf("if l := len(x.%s); l>0 {\n", field.GoName())
+					g.Pf("l = len(x.%s)\n", field.GoName())
+					g.Pln("if l>0 {\n")
 					g.Pf("    n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
 					g.Pln("}")
 				} else {
-					l := "len(x." + field.GoName() + ")"
-					g.Pf("n += %d + proto.VarintSize(uint64(%s)) + %s\n", ks, l, l)
+					g.Pf("l = len(x.%s)\n", field.GoName())
+					g.Pf("n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
 				}
 			}
 
 		case SMessage:
-
+			ks := keySize(field.Sequence, WireBytes)
+			if repeated {
+				g.Pf("for _, e := range x.%s {\n", field.GoName())
+				g.Pln("    l = e.Size()")
+				g.Pf("     n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
+				g.Pln("}")
+			} else {
+				g.Pf("if e := x.%s;e != nil {\n", field.GoName())
+				g.Pln("    l = e.Size()")
+				g.Pf("    n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
+				g.Pln("}")
+			}
 		}
 	}
 
