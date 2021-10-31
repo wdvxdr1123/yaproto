@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"os"
 
 	"github.com/emicklei/proto"
@@ -9,6 +10,7 @@ import (
 )
 
 func main() {
+	getter := flag.Bool("getter", false, "generate getter for message")
 	file, err := os.Open(os.Args[1])
 	if err != nil {
 		panic(err)
@@ -21,5 +23,6 @@ func main() {
 	}
 
 	g := generator.New(defination)
+	g.Options.GenGetter = *getter
 	g.Generate(os.Stdout)
 }

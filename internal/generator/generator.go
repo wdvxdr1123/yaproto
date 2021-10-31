@@ -19,6 +19,10 @@ type Generator struct {
 	version   int
 	gopackage string
 	messages  []*Message
+
+	Options struct {
+		GenGetter bool
+	}
 }
 
 func New(def *proto.Proto) *Generator {
@@ -135,18 +139,34 @@ func (g *Generator) generate() {
 		for _, f := range m.Fields {
 			switch f.Option {
 			case FNone:
-				g.Pf("%s %s `protobuf:\"%d\"`\n", GoCamelCase(f.Name), f.Type.GoType(), f.Sequence)
+				g.Pf("%s %s `protobuf:\"%d\"`\n", GoCamelCase(f.Name), f.GoType(), f.Sequence)
 			case FRepeated:
-				g.Pf("%s []%s `protobuf:\"%d\"`\n", GoCamelCase(f.Name), f.Type.GoType(), f.Sequence)
+				g.Pf("%s %s `protobuf:\"%d\"`\n", GoCamelCase(f.Name), f.GoType(), f.Sequence)
 			case FRequired:
-				g.Pf("%s %s `protobuf:\"%d,req\"`\n", GoCamelCase(f.Name), f.Type.GoType(), f.Sequence)
+				g.Pf("%s %s `protobuf:\"%d,req\"`\n", GoCamelCase(f.Name), f.GoType(), f.Sequence)
 			case FOptional:
-				g.Pf("%s %s `protobuf:\"%d,opt\"`\n", GoCamelCase(f.Name), f.Type.GoType(), f.Sequence)
+				g.Pf("%s %s `protobuf:\"%d,opt\"`\n", GoCamelCase(f.Name), f.GoType(), f.Sequence)
 			}
 
 		}
 		g.Pln("}")
 		g.Pln()
-	}
 
+		if g.Options.GenGetter {
+			g.getter(m)
+		}
+	}
+}
+
+func (g *Generator) getter(m *Message) {
+	for _, f := range m.Fields {
+		g.Pln()
+		g.Pf("func (x *%s) Get%s() %s {\n", GoCamelCase(m.Name), GoCamelCase(f.Name), f.GoType())
+		g.Pln("	if x != nil {")
+		g.Pf("		return x.%s\n", GoCamelCase(f.Name))
+		g.Pln("	}")
+		g.Pln("	return", f.DefaultValue())
+		g.Pln("}")
+		g.Pln()
+	}
 }

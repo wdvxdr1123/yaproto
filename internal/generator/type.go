@@ -96,3 +96,34 @@ type Field struct {
 	Name     string
 	Sequence int
 }
+
+func (f *Field) GoType() string {
+	if f.Option&FRepeated != 0 {
+		return "[]" + f.Type.GoType()
+	}
+	return f.Type.GoType()
+}
+
+func (f *Field) DefaultValue() string {
+	if f.Option&FRepeated != 0 {
+		return "nil"
+	}
+	switch f.Type.Scope() {
+	case SBuiltin:
+		switch f.Type.Name() {
+		case "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64":
+			return "0"
+		case "float32", "float64":
+			return "0.0"
+		case "bool":
+			return "false"
+		case "bytes":
+			return "nil"
+		case "string":
+			return `""`
+		}
+	case SMessage:
+		return "nil"
+	}
+	panic("unreachable")
+}
