@@ -2,11 +2,11 @@ package generator
 
 // from https://github.com/protocolbuffers/protobuf-go/blob/master/internal/strs/strings.go
 
-// GoCamelCase camel-cases a protobuf name for use as a Go identifier.
+// CamelCase camel-cases a protobuf name for use as a Go identifier.
 //
 // If there is an interior underscore followed by a lower case letter,
 // drop the underscore and convert the letter to upper case.
-func GoCamelCase(s string) string {
+func CamelCase(s string) string {
 	// Invariant: if the next letter is lower case, it must be converted
 	// to upper case.
 	// That is, we process a word at a time, where words are marked by _ or
@@ -52,4 +52,14 @@ func isASCIIUpper(c byte) bool {
 }
 func isASCIIDigit(c byte) bool {
 	return '0' <= c && c <= '9'
+}
+
+func keySize(fieldNumber int, wire Wire) int {
+	x := uint32(fieldNumber)<<3 | uint32(wire)
+	size := 0
+	for size = 0; x > 127; size++ {
+		x >>= 7
+	}
+	size++
+	return size
 }

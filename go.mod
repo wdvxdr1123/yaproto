@@ -1,4 +1,4 @@
-module yaproto
+module github.com/wdvxdr1123/yaproto
 
 go 1.17
 

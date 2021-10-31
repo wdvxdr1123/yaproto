@@ -19,6 +19,7 @@ type Type interface {
 type BuiltinType struct {
 	name   string
 	gotype string
+	wire   string
 }
 
 func (b BuiltinType) GoType() string {
@@ -33,20 +34,30 @@ func (b BuiltinType) Scope() Scope {
 	return SBuiltin
 }
 
+func (b BuiltinType) WireType() Wire {
+	switch b.wire {
+	case "fixed32":
+		return WireFixed32
+	case "fixed64":
+		return WireFixed64
+	case "varint":
+		return WireVarint
+	case "bytes":
+		return WireBytes
+	}
+	panic("unknown wire type")
+}
+
 var BuiltinTypes = [...]BuiltinType{
-	{"int8", "int8"},
-	{"uint8", "uint8"},
-	{"int16", "int16"},
-	{"uint16", "uint16"},
-	{"int32", "int32"},
-	{"uint32", "uint32"},
-	{"int64", "int64"},
-	{"uint64", "uint64"},
-	{"float32", "float32"},
-	{"float64", "float64"},
-	{"bool", "bool"},
-	{"bytes", "[]byte"},
-	{"string", "string"},
+	{"int32", "int32", "varint"},
+	{"uint32", "uint32", "varint"},
+	{"int64", "int64", "varint"},
+	{"uint64", "uint64", "varint"},
+	{"float32", "float32", "fixed32"},
+	{"float64", "float64", "fixed64"},
+	{"bool", "bool", "varint"},
+	{"bytes", "[]byte", "bytes"},
+	{"string", "string", "bytes"},
 }
 
 type MessageType struct {
@@ -55,7 +66,7 @@ type MessageType struct {
 }
 
 func (m *MessageType) GoType() string {
-	return "*" + GoCamelCase(m.name)
+	return "*" + CamelCase(m.name)
 }
 
 func (m *MessageType) Name() string {
@@ -81,6 +92,10 @@ type Message struct {
 	Fields []*Field
 }
 
+func (m *Message) GoType() string {
+	return CamelCase(m.Name)
+}
+
 type FieldOption uint8
 
 const (
@@ -97,6 +112,10 @@ type Field struct {
 	Sequence int
 }
 
+func (f *Field) GoName() string {
+	return CamelCase(f.Name)
+}
+
 func (f *Field) GoType() string {
 	if f.Option&FRepeated != 0 {
 		return "[]" + f.Type.GoType()
@@ -111,7 +130,7 @@ func (f *Field) DefaultValue() string {
 	switch f.Type.Scope() {
 	case SBuiltin:
 		switch f.Type.Name() {
-		case "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64":
+		case "int32", "uint32", "int64", "uint64":
 			return "0"
 		case "float32", "float64":
 			return "0.0"
@@ -127,3 +146,14 @@ func (f *Field) DefaultValue() string {
 	}
 	panic("unreachable")
 }
+
+type Wire uint8
+
+const (
+	WireVarint Wire = iota
+	WireFixed64
+	WireBytes
+	WireStartGroup
+	WireEndGroup
+	WireFixed32
+)
