@@ -141,13 +141,12 @@ func (g *Generator) generate() {
 		for _, f := range m.Fields {
 			switch f.Option {
 			case FNone, FRepeated:
-				g.Pf("%s %s `protobuf:\"%d\"`\n", f.GoName(), f.GoType(), f.Sequence)
+				g.Pf("%s %s `protobuf:\"%d\"`\n", f.GoName(), g.ftype(f), f.Sequence)
 			case FRequired:
-				g.Pf("%s %s `protobuf:\"%d,req\"`\n", f.GoName(), f.GoType(), f.Sequence)
+				g.Pf("%s %s `protobuf:\"%d,req\"`\n", f.GoName(), g.ftype(f), f.Sequence)
 			case FOptional:
-				g.Pf("%s %s `protobuf:\"%d,opt\"`\n", f.GoName(), f.GoType(), f.Sequence)
+				g.Pf("%s %s `protobuf:\"%d,opt\"`\n", f.GoName(), g.ftype(f), f.Sequence)
 			}
-
 		}
 		g.Pln("}")
 		g.Pln()
@@ -164,9 +163,14 @@ func (g *Generator) generate() {
 func (g *Generator) getter(m *Message) {
 	for _, f := range m.Fields {
 		g.Pln()
-		g.Pf("func (x *%s) Get%s() %s {\n", m.GoType(), f.GoName(), f.GoType())
-		g.Pln("    if x != nil {")
-		g.Pf("        return x.%s\n", f.GoName())
+		g.Pf("func (x *%s) Get%s() %s {\n", m.GoType(), f.GoName(), g.rtype(f))
+		if g.isptr(f) {
+			g.Pf("if x != nil && x.%s != nil {\n", f.GoName())
+			g.Pf("return *x.%s\n", f.GoName())
+		} else {
+			g.Pln("if x != nil {")
+			g.Pf("return x.%s\n", f.GoName())
+		}
 		g.Pln("    }")
 		g.Pln("    return", f.DefaultValue())
 		g.Pln("}")
@@ -205,8 +209,10 @@ func (g *Generator) size(m *Message) {
 						g.Pf("for _,e := range x.%s {\n", field.GoName())
 						g.Pf("    n += %d + proto.VarintSize(e)\n", ks)
 						g.Pln("}")
-					} else {
-						g.Pf("n += %d + proto.VarintSize(x.%s)\n", ks, field.GoName())
+					} else if g.proto2() {
+						g.Pf("if x.%s != nil {\n", field.GoName())
+						g.Pf("n += %d + proto.VarintSize(*x.%s)\n", ks, field.GoName())
+						g.Pln("}")
 					}
 
 				case "bool":
@@ -218,7 +224,9 @@ func (g *Generator) size(m *Message) {
 						g.Pf("    n += %d + proto.VarintSize(uint64(e))\n", ks)
 						g.Pln("}")
 					} else {
-						g.Pf("n += %d + proto.VarintSize(uint64(x.%s))\n", ks, field.GoName())
+						g.Pf("if x.%s != nil {\n", field.GoName())
+						g.Pf("n += %d + proto.VarintSize(uint64(*x.%s))\n", ks, field.GoName())
+						g.Pln("}")
 					}
 				}
 
@@ -234,14 +242,20 @@ func (g *Generator) size(m *Message) {
 					g.Pln("    l = len(b)")
 					g.Pf("     n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
 					g.Pln("}")
-				} else if g.Proto3() {
+				} else if g.proto3() {
 					g.Pf("l = len(x.%s)\n", field.GoName())
 					g.Pln("if l>0 {\n")
 					g.Pf("    n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
 					g.Pln("}")
 				} else {
-					g.Pf("l = len(x.%s)\n", field.GoName())
-					g.Pf("n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
+					g.Pf("if x.%s != nil {\n", field.GoName())
+					if g.isptr(field) {
+						g.Pf("    l = len(*x.%s)\n", field.GoName())
+					} else {
+						g.Pf("    l = len(x.%s)\n", field.GoName())
+					}
+					g.Pf("    n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
+					g.Pln("}")
 				}
 			}
 
@@ -265,6 +279,49 @@ func (g *Generator) size(m *Message) {
 	g.Pln("}")
 }
 
-func (g *Generator) Proto3() bool {
-	return g.version == 3
+func (g *Generator) proto2() bool { return g.version == 2 }
+func (g *Generator) proto3() bool { return g.version == 3 }
+
+func (g *Generator) isptr(f *Field) bool {
+	if g.proto3() || f.Type.Scope() == SMessage || f.Option == FRepeated {
+		return false
+	}
+	if f.Type.Scope() == SBuiltin && f.Type.Name() == "bytes" {
+		return false
+	}
+	return true
+}
+
+// rtype is return type of the field
+func (g *Generator) rtype(f *Field) (s string) {
+	if f.Option == FRepeated {
+		return g.ftype(f)
+	}
+	switch f.Type.Scope() {
+	case SMessage:
+		return "*" + f.GoType()
+	case SBuiltin:
+		return f.GoType()
+	}
+	panic("unreachable")
+}
+
+// ftype is type of the field in struct field definition
+func (g *Generator) ftype(f *Field) (s string) {
+	switch f.Type.Scope() {
+	case SMessage:
+		s = "*" + f.GoType()
+	case SBuiltin:
+		if g.isptr(f) {
+			s = "*" + f.GoType()
+		} else {
+			s = f.GoType()
+		}
+	default:
+		panic("unreachable")
+	}
+	if f.Option == FRepeated {
+		s = "[]" + s
+	}
+	return
 }

@@ -66,7 +66,7 @@ type MessageType struct {
 }
 
 func (m *MessageType) GoType() string {
-	return "*" + CamelCase(m.name)
+	return CamelCase(m.name)
 }
 
 func (m *MessageType) Name() string {
@@ -117,9 +117,6 @@ func (f *Field) GoName() string {
 }
 
 func (f *Field) GoType() string {
-	if f.Option&FRepeated != 0 {
-		return "[]" + f.Type.GoType()
-	}
 	return f.Type.GoType()
 }
 
