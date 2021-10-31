@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/format"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/emicklei/proto"
@@ -17,16 +18,20 @@ type Generator struct {
 
 	version   int
 	gopackage string
-	messages  map[string]*Message
+	messages  []*Message
 }
 
 func New(def *proto.Proto) *Generator {
 	g := &Generator{
-		def:      def,
-		version:  2,
-		messages: make(map[string]*Message),
+		def:     def,
+		version: 2,
 	}
 	g.parse()
+
+	sort.Slice(g.messages, func(i, j int) bool {
+		return g.messages[i].Name < g.messages[j].Name
+	})
+
 	return g
 }
 
@@ -76,11 +81,13 @@ func (g *Generator) parse() {
 }
 
 func (g *Generator) lookup(name string) *Message {
-	m, ok := g.messages[name]
-	if !ok {
-		m = &Message{Name: name}
-		g.messages[name] = m
+	for _, m := range g.messages {
+		if m.Name == name {
+			return m
+		}
 	}
+	m := &Message{Name: name}
+	g.messages = append(g.messages, m)
 	return m
 }
 
@@ -93,6 +100,16 @@ func (g *Generator) message(m *proto.Message) {
 				Name:     field.Name,
 				Sequence: field.Sequence,
 				Type:     g.typ(field.Type),
+				Option:   FNone,
+			}
+
+			switch {
+			case field.Repeated:
+				f.Option |= FRepeated
+			case field.Optional:
+				f.Option |= FOptional
+			case field.Required:
+				f.Option |= FRequired
 			}
 			msg.Fields = append(msg.Fields, f)
 		case *proto.Message:
@@ -116,7 +133,17 @@ func (g *Generator) generate() {
 	for _, m := range g.messages {
 		g.Pln("type ", GoCamelCase(m.Name), " struct {")
 		for _, f := range m.Fields {
-			g.Pf("%s %s `protobuf:\"%d\"`\n", GoCamelCase(f.Name), f.Type.GoType(), f.Sequence)
+			switch f.Option {
+			case FNone:
+				g.Pf("%s %s `protobuf:\"%d\"`\n", GoCamelCase(f.Name), f.Type.GoType(), f.Sequence)
+			case FRepeated:
+				g.Pf("%s []%s `protobuf:\"%d\"`\n", GoCamelCase(f.Name), f.Type.GoType(), f.Sequence)
+			case FRequired:
+				g.Pf("%s %s `protobuf:\"%d,req\"`\n", GoCamelCase(f.Name), f.Type.GoType(), f.Sequence)
+			case FOptional:
+				g.Pf("%s %s `protobuf:\"%d,opt\"`\n", GoCamelCase(f.Name), f.Type.GoType(), f.Sequence)
+			}
+
 		}
 		g.Pln("}")
 		g.Pln()

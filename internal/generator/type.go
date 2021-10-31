@@ -8,6 +8,8 @@ const (
 	SEnum
 )
 
+var _, _, _ = SBuiltin, SMessage, SEnum
+
 type Type interface {
 	GoType() string
 	Name() string
@@ -79,7 +81,17 @@ type Message struct {
 	Fields []*Field
 }
 
+type FieldOption uint8
+
+const (
+	FNone     FieldOption = iota
+	FOptional             = 1 << (iota - 1)
+	FRepeated
+	FRequired
+)
+
 type Field struct {
+	Option   FieldOption
 	Type     Type
 	Name     string
 	Sequence int
