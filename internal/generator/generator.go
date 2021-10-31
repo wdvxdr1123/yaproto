@@ -130,7 +130,12 @@ func (g *Generator) generate() {
 	g.Pln()
 
 	if g.Options.GenSize || g.Options.GenMarshal {
-		g.Pln("import proto \"github.com/wdvxdr1123/yaproto\"")
+		g.Pln("import (")
+		g.Pln("    proto \"github.com/wdvxdr1123/yaproto\"")
+		if g.Options.GenMarshal {
+			g.Pln("_ \"encoding/binary\"")
+		}
+		g.Pln(")")
 		g.Pln()
 	}
 
@@ -157,6 +162,9 @@ func (g *Generator) generate() {
 		if g.Options.GenSize {
 			g.size(m)
 		}
+		if g.Options.GenMarshal {
+			g.marshal(m)
+		}
 	}
 }
 
@@ -176,107 +184,6 @@ func (g *Generator) getter(m *Message) {
 		g.Pln("}")
 		g.Pln()
 	}
-}
-
-func (g *Generator) size(m *Message) {
-	g.Pf("func (x *%s) Size() (n int) {\n", m.GoType())
-	g.Pln("    if x == nil {")
-	g.Pln("        return 0")
-	g.Pln("    }")
-	g.Pln("    var l int")
-	g.Pln("    _ = l")
-
-	var repeated bool
-	fixed := func(size int, field *Field) {
-		if repeated {
-			g.Pf("n += %d*len(x.%s)\n", size, field.GoName())
-		} else {
-			g.Pln("n +=", size)
-		}
-	}
-
-	for _, field := range m.Fields {
-		repeated = field.Option == FRepeated
-		switch field.Type.Scope() {
-		case SBuiltin:
-			typ := field.Type.(BuiltinType)
-			ks := keySize(field.Sequence, typ.WireType())
-			switch typ.WireType() {
-			case WireVarint:
-				switch typ.Name() {
-				case "uint64":
-					if repeated {
-						g.Pf("for _,e := range x.%s {\n", field.GoName())
-						g.Pf("    n += %d + proto.VarintSize(e)\n", ks)
-						g.Pln("}")
-					} else if g.proto2() {
-						g.Pf("if x.%s != nil {\n", field.GoName())
-						g.Pf("n += %d + proto.VarintSize(*x.%s)\n", ks, field.GoName())
-						g.Pln("}")
-					}
-
-				case "bool":
-					fixed(ks+1, field)
-
-				default:
-					if repeated {
-						g.Pf("for _,e := range x.%s {\n", field.GoName())
-						g.Pf("    n += %d + proto.VarintSize(uint64(e))\n", ks)
-						g.Pln("}")
-					} else {
-						g.Pf("if x.%s != nil {\n", field.GoName())
-						g.Pf("n += %d + proto.VarintSize(uint64(*x.%s))\n", ks, field.GoName())
-						g.Pln("}")
-					}
-				}
-
-			case WireFixed32:
-				fixed(ks+4, field)
-
-			case WireFixed64:
-				fixed(ks+8, field)
-
-			case WireBytes:
-				if repeated {
-					g.Pf("for _, b := range x.%s {\n", field.GoName())
-					g.Pln("    l = len(b)")
-					g.Pf("     n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
-					g.Pln("}")
-				} else if g.proto3() {
-					g.Pf("l = len(x.%s)\n", field.GoName())
-					g.Pln("if l>0 {\n")
-					g.Pf("    n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
-					g.Pln("}")
-				} else {
-					g.Pf("if x.%s != nil {\n", field.GoName())
-					if g.isptr(field) {
-						g.Pf("    l = len(*x.%s)\n", field.GoName())
-					} else {
-						g.Pf("    l = len(x.%s)\n", field.GoName())
-					}
-					g.Pf("    n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
-					g.Pln("}")
-				}
-			}
-
-		case SMessage:
-			ks := keySize(field.Sequence, WireBytes)
-			if repeated {
-				g.Pf("for _, e := range x.%s {\n", field.GoName())
-				g.Pln("    l = e.Size()")
-				g.Pf("     n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
-				g.Pln("}")
-			} else {
-				g.Pf("if e := x.%s;e != nil {\n", field.GoName())
-				g.Pln("    l = e.Size()")
-				g.Pf("    n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
-				g.Pln("}")
-			}
-		}
-	}
-
-	g.Pln("return")
-	g.Pln("}")
 }
 
 func (g *Generator) proto2() bool { return g.version == 2 }
