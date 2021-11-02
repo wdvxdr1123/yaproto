@@ -133,7 +133,7 @@ func (g *Generator) generate() {
 		g.Pln("import (")
 		g.Pln("    proto \"github.com/wdvxdr1123/yaproto\"")
 		if g.Options.GenMarshal {
-			g.Pln("_ \"encoding/binary\"")
+			//	g.Pln("\"encoding/binary\"")
 		}
 		g.Pln(")")
 		g.Pln()
@@ -172,13 +172,12 @@ func (g *Generator) getter(m *Message) {
 	for _, f := range m.Fields {
 		g.Pln()
 		g.Pf("func (x *%s) Get%s() %s {\n", m.GoType(), f.GoName(), g.rtype(f))
-		if g.isptr(f) {
+		if f.Type.Scope() != SMessage && g.isptr(f) {
 			g.Pf("if x != nil && x.%s != nil {\n", f.GoName())
-			g.Pf("return *x.%s\n", f.GoName())
 		} else {
 			g.Pln("if x != nil {")
-			g.Pf("return x.%s\n", f.GoName())
 		}
+		g.Pf("return %s\n", g.sel(f))
 		g.Pln("    }")
 		g.Pln("    return", f.DefaultValue())
 		g.Pln("}")
@@ -190,11 +189,14 @@ func (g *Generator) proto2() bool { return g.version == 2 }
 func (g *Generator) proto3() bool { return g.version == 3 }
 
 func (g *Generator) isptr(f *Field) bool {
-	if g.proto3() || f.Type.Scope() == SMessage || f.Option == FRepeated {
+	if f.Option == FRepeated {
 		return false
 	}
-	if f.Type.Scope() == SBuiltin && f.Type.Name() == "bytes" {
-		return false
+	if f.Type.Scope() == SMessage {
+		return true
+	}
+	if g.proto2() && f.Type.Name() != "bytes" {
+		return true
 	}
 	return true
 }
@@ -231,4 +233,25 @@ func (g *Generator) ftype(f *Field) (s string) {
 		s = "[]" + s
 	}
 	return
+}
+
+// sel select the filed
+func (g *Generator) sel(field *Field) string {
+	x := fmt.Sprintf("x.%s", field.GoName())
+	if field.Type.Scope() != SMessage && g.isptr(field) {
+		x = "*" + x
+	}
+	return x
+}
+
+// selConv select the field and convert to dst Type.
+func (g *Generator) selConv(field *Field, dst Type) string {
+	return conv(g.sel(field), field.Type, dst)
+}
+
+func conv(x string, src, dst Type) string {
+	if dst != src {
+		x = dst.GoType() + "(" + x + ")"
+	}
+	return x
 }

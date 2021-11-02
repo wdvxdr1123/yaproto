@@ -48,6 +48,18 @@ func (b BuiltinType) WireType() Wire {
 	panic("unknown wire type")
 }
 
+const (
+	TINT32 = iota
+	TUINT32
+	TINT64
+	TUINT64
+	TFLOAT32
+	TFLOAT64
+	TBOOL
+	TBYTES
+	TSTRING
+)
+
 var BuiltinTypes = [...]BuiltinType{
 	{"int32", "int32", "varint"},
 	{"uint32", "uint32", "varint"},
@@ -154,3 +166,14 @@ const (
 	WireEndGroup
 	WireFixed32
 )
+
+func wire(t Type) Wire {
+	switch t := t.(type) {
+	case BuiltinType:
+		return t.WireType()
+	case *MessageType:
+		return WireBytes
+	default:
+		panic("unreachable")
+	}
+}

@@ -28,7 +28,7 @@ func (g *Generator) sizeBuiltin(field *Field, repeated bool) {
 	ks := keySize(field.Sequence, typ.WireType())
 	fixed := func(size int, field *Field) {
 		if repeated {
-			g.Pf("n += %d*len(x.%s)\n", size, field.GoName())
+			g.Pf("n += %d*len(%s)\n", size, g.sel(field))
 		} else {
 			g.Pln("n +=", size)
 		}
@@ -36,28 +36,17 @@ func (g *Generator) sizeBuiltin(field *Field, repeated bool) {
 	switch typ.WireType() {
 	case WireVarint:
 		switch typ.Name() {
-		case "uint64":
-			if repeated {
-				g.Pf("for _,e := range x.%s {\n", field.GoName())
-				g.Pf("    n += %d + proto.VarintSize(e)\n", ks)
-				g.Pln("}")
-			} else if g.proto2() {
-				g.Pf("if x.%s != nil {\n", field.GoName())
-				g.Pf("n += %d + proto.VarintSize(*x.%s)\n", ks, field.GoName())
-				g.Pln("}")
-			}
-
 		case "bool":
 			fixed(ks+1, field)
 
 		default:
 			if repeated {
 				g.Pf("for _,e := range x.%s {\n", field.GoName())
-				g.Pf("    n += %d + proto.VarintSize(uint64(e))\n", ks)
+				g.Pf("    n += %d + proto.VarintSize(%s)\n", ks, conv("e", field.Type, BuiltinTypes[TUINT64]))
 				g.Pln("}")
 			} else {
 				g.Pf("if x.%s != nil {\n", field.GoName())
-				g.Pf("n += %d + proto.VarintSize(uint64(*x.%s))\n", ks, field.GoName())
+				g.Pf("n += %d + proto.VarintSize(%s)\n", ks, g.selConv(field, BuiltinTypes[TUINT64]))
 				g.Pln("}")
 			}
 		}
@@ -75,17 +64,13 @@ func (g *Generator) sizeBuiltin(field *Field, repeated bool) {
 			g.Pf("     n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
 			g.Pln("}")
 		} else if g.proto3() {
-			g.Pf("l = len(x.%s)\n", field.GoName())
+			g.Pln("l = len(", g.sel(field), ")")
 			g.Pln("if l>0 {\n")
 			g.Pf("    n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
 			g.Pln("}")
 		} else {
 			g.Pf("if x.%s != nil {\n", field.GoName())
-			if g.isptr(field) {
-				g.Pf("    l = len(*x.%s)\n", field.GoName())
-			} else {
-				g.Pf("    l = len(x.%s)\n", field.GoName())
-			}
+			g.Pln("    l = len(", g.sel(field), ")")
 			g.Pf("    n += %d + proto.VarintSize(uint64(l)) + l\n", ks)
 			g.Pln("}")
 		}

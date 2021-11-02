@@ -55,11 +55,15 @@ func isASCIIDigit(c byte) bool {
 }
 
 func keySize(fieldNumber int, wire Wire) int {
-	x := uint32(fieldNumber)<<3 | uint32(wire)
+	x := keyValue(fieldNumber, wire)
 	size := 0
 	for size = 0; x > 127; size++ {
 		x >>= 7
 	}
 	size++
 	return size
+}
+
+func keyValue(fieldNumber int, wire Wire) uint32 {
+	return uint32(fieldNumber)<<3 | uint32(wire)
 }
