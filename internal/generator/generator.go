@@ -198,7 +198,7 @@ func (g *Generator) isptr(f *Field) bool {
 	if g.proto2() && f.Type.Name() != "bytes" {
 		return true
 	}
-	return true
+	return false
 }
 
 // rtype is return type of the field

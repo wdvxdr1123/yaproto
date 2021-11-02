@@ -1,80 +1,86 @@
 package generator
 
+import (
+	"fmt"
+
+	"github.com/wdvxdr1123/yaproto"
+)
+
 func (g *Generator) marshal(m *Message) {
-	g.Pf("func (x *%s) Marshal() ([]byte, error) {\n", m.Name)
-	g.Pln("    if x == nil {")
-	g.Pln("        return []byte{},nil")
-	g.Pln("    }")
-	g.Pln("    buf := make([]byte, x.Size())")
-	g.Pln("    var i int")
-	g.Pln("    _ = i")
+	g.Pf(`func (x *%s) Marshal() []byte {
+	size := x.Size()
+	buf := make([]byte, size)
+	n := x.MarshalTo(buf[:size])
+	return buf[:n]
+}
+
+func (x *%s) MarshalTo(buf []byte) int {
+	var i int
+	_ = i`, CamelCase(m.Name), CamelCase(m.Name))
+	g.Pln()
 
 	for _, field := range m.Fields {
-		repeated := field.Option == FRepeated
-		switch field.Type.Scope() {
-		case SBuiltin:
-			g.marshalBuiltin(field, repeated)
-		case SMessage:
-			g.marshalMessage(field, repeated)
-		}
+		g.marshalField(field)
 	}
 
-	g.Pln("    return buf, nil")
+	g.Pln("    return i")
 	g.Pln("}")
 	g.Pln()
 }
 
-func (g *Generator) marshalBuiltin(field *Field, repeated bool) {
+func (g *Generator) marshalField(field *Field) {
 	wt := wire(field.Type)
-	ks := keySize(field.Sequence, wt)
-	kv := keyValue(field.Sequence, wt)
 
-	key := func() {
-		switch ks {
-		case 1:
-			g.Pf("buf[i] = %d\n", kv)
+	key := func(kv uint32) {
+		ks := yaproto.VarintSize(uint64(kv))
+		for i := 0; i < ks; i++ {
+			x := byte(kv)
+			if i != ks-1 {
+				x |= 0x80
+			}
+			g.Pf("buf[i] = 0x%x\n", x)
 			g.Pf("i++\n")
-		default:
-			// todo: expand uvarint
-			g.Pf("proto.PutVarint(buf, &i, %d)\n", kv)
 		}
 	}
 
-	body := func() {
-		key()
+	body := func(name string, t Type) {
+		// value
 		switch wt {
+		default:
+			panic(fmt.Errorf("unhandled wire type: %d", wt))
+
 		case WireVarint:
 			if field.Type.Name() == "bool" {
-				g.Pf("proto.PutBool(buf, &i, %s)\n", g.selConv(field, BuiltinTypes[TBOOL]))
+				g.Pf("proto.PutBool(buf, &i, %s)\n", name)
 			} else {
-				g.Pf("proto.PutVarint(buf, &i, %s)\n", g.selConv(field, BuiltinTypes[TUINT64]))
+				g.Pf("proto.PutVarint(buf, &i, %s)\n", conv(name, t, BuiltinTypes[TUINT64]))
 			}
 
 		case WireBytes:
 			if field.Type.Scope() == SMessage {
-				// g.Pf("proto.PutVarint(buf, &i, uint64(len(%s)))\n", g.selConv(field, BuiltinTypes[TSTRING]))
-				// g.Pf("i += copy(buf[i:], %s)\n", g.sel(field))
+				g.Pf("l := %s.Size()\n", name)
+				g.Pf("proto.PutVarint(buf, &i, uint64(l))\n")
+				g.Pf("i += %s.MarshalTo(buf[i:])\n", name)
 			} else {
-				g.Pf("i += copy(buf[i:], %s)\n", g.sel(field))
+				g.Pf("proto.PutVarint(buf, &i, uint64(len(%s)))\n", name)
+				g.Pf("i += copy(buf[i:], %s)\n", name)
 			}
 		}
 	}
 
 	if g.proto2() {
-		if repeated {
-			field.Option = FNone
-			// todo(wdvxdr): implement
-			field.Option = FRepeated
+		if field.Option == FRepeated {
+			g.Pf("    for _, e := range %s {\n", g.sel(field))
+			key(keyValue(field.Sequence, WireBytes))
+			body("e", field.Type)
+			g.Pf("    }\n")
 		} else {
 			g.Pf("if x.%s != nil {\n", field.GoName())
-			body()
+			key(keyValue(field.Sequence, wt))
+			body(g.sel(field), field.Type)
 			g.Pln("}")
 		}
 	} else {
 
 	}
-}
-
-func (g *Generator) marshalMessage(field *Field, repeated bool) {
-
 }
