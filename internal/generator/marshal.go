@@ -2,8 +2,6 @@ package generator
 
 import (
 	"fmt"
-
-	"github.com/wdvxdr1123/yaproto"
 )
 
 func (g *Generator) marshal(m *Message) {
@@ -32,15 +30,14 @@ func (g *Generator) marshalField(field *Field) {
 	wt := wire(field.Type)
 
 	key := func(kv uint32) {
-		ks := yaproto.VarintSize(uint64(kv))
-		for i := 0; i < ks; i++ {
-			x := byte(kv)
-			if i != ks-1 {
-				x |= 0x80
-			}
+		for kv >= 0x80 {
+			x := byte(kv) | 0x80
 			g.Pf("buf[i] = 0x%x\n", x)
 			g.Pf("i++\n")
+			kv >>= 7
 		}
+		g.Pf("buf[i] = 0x%x\n", byte(kv))
+		g.Pf("i++\n")
 	}
 
 	body := func(name string, t Type) {

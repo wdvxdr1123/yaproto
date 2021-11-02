@@ -30,7 +30,9 @@ func (g *Generator) sizeBuiltin(field *Field, repeated bool) {
 		if repeated {
 			g.Pf("n += %d*len(%s)\n", size, g.sel(field))
 		} else {
+			g.Pf("if x.%s != nil {\n", field.GoName())
 			g.Pln("n +=", size)
+			g.Pln("}")
 		}
 	}
 	switch typ.WireType() {
