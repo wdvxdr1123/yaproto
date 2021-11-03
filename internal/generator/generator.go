@@ -114,9 +114,11 @@ func (g *Generator) message(m *proto.Message) {
 				f.Flag.Set(FRequired, true)
 			}
 
-			if (g.proto3() && !f.IsRepeated() && f.Type.Scope() == SMessage) ||
-				(g.proto2() && !f.IsRepeated() && f.Type.Name() != "bytes") {
-				f.Set(FPtr, true)
+			if !f.IsRepeated() {
+				if (g.proto2() && f.Type.Name() != "bytes") ||
+					(g.proto3() && f.Type.Scope() == SMessage) {
+					f.Set(FPtr, true)
+				}
 			}
 
 			msg.Fields = append(msg.Fields, f)
