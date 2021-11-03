@@ -26,8 +26,8 @@ func (x *%s) MarshalTo(buf []byte) int {
 	g.Pln()
 }
 
-func (g *Generator) marshalField(field *Field) {
-	wt := wire(field.Type)
+func (g *Generator) marshalField(f *Field) {
+	wt := wire(f.Type)
 
 	key := func(kv uint32) {
 		for kv >= 0x80 {
@@ -47,14 +47,14 @@ func (g *Generator) marshalField(field *Field) {
 			panic(fmt.Errorf("unhandled wire type: %d", wt))
 
 		case WireVarint:
-			if field.Type.Name() == "bool" {
+			if f.Type.Name() == "bool" {
 				g.Pf("proto.PutBool(buf, &i, %s)\n", name)
 			} else {
 				g.Pf("proto.PutVarint(buf, &i, %s)\n", conv(name, t, BuiltinTypes[TUINT64]))
 			}
 
 		case WireBytes:
-			if field.Type.Scope() == SMessage {
+			if f.Type.Scope() == SMessage {
 				g.Pf("l := %s.Size()\n", name)
 				g.Pf("proto.PutVarint(buf, &i, uint64(l))\n")
 				g.Pf("i += %s.MarshalTo(buf[i:])\n", name)
@@ -66,15 +66,15 @@ func (g *Generator) marshalField(field *Field) {
 	}
 
 	if g.proto2() {
-		if field.Option == FRepeated {
-			g.Pf("    for _, e := range %s {\n", g.sel(field))
-			key(keyValue(field.Sequence, WireBytes))
-			body("e", field.Type)
+		if f.IsRepeated() {
+			g.Pf("    for _, e := range %s {\n", g.sel(f))
+			key(keyValue(f.Sequence, WireBytes))
+			body("e", f.Type)
 			g.Pf("    }\n")
 		} else {
-			g.Pf("if x.%s != nil {\n", field.GoName())
-			key(keyValue(field.Sequence, wt))
-			body(g.sel(field), field.Type)
+			g.Pf("if x.%s != nil {\n", f.GoName())
+			key(keyValue(f.Sequence, wt))
+			body(g.sel(f), f.Type)
 			g.Pln("}")
 		}
 	} else {

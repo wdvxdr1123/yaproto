@@ -108,20 +108,43 @@ func (m *Message) GoType() string {
 	return CamelCase(m.Name)
 }
 
-type FieldOption uint8
+type Flag uint
 
 const (
-	FNone     FieldOption = iota
-	FOptional             = 1 << (iota - 1)
+	FOptional Flag = 1<<iota - 1
 	FRepeated
 	FRequired
+
+	// FPtr mark a pointer field.
+	FPtr
 )
 
+func (f Flag) Is(mask Flag) bool {
+	return f&mask != 0
+}
+
+func (f *Flag) Set(mask Flag, value bool) {
+	if value {
+		*f |= mask
+	} else {
+		*f &^= mask
+	}
+}
+
 type Field struct {
-	Option   FieldOption
+	Flag
+
 	Type     Type
 	Name     string
 	Sequence int
+}
+
+func (f *Field) IsRepeated() bool {
+	return f.Is(FRepeated)
+}
+
+func (f *Field) IsPtr() bool {
+	return f.Is(FPtr)
 }
 
 func (f *Field) GoName() string {
@@ -132,8 +155,42 @@ func (f *Field) GoType() string {
 	return f.Type.GoType()
 }
 
+// ftype is type of the field in struct field definition
+func (f *Field) ftype() (s string) {
+	switch f.Type.Scope() {
+	case SMessage:
+		s = "*" + f.GoType()
+	case SBuiltin:
+		if f.IsPtr() {
+			s = "*" + f.GoType()
+		} else {
+			s = f.GoType()
+		}
+	default:
+		panic("unreachable")
+	}
+	if f.Flag == FRepeated {
+		s = "[]" + s
+	}
+	return
+}
+
+// rtype is return type of the field
+func (f *Field) rtype() string {
+	if f.Flag == FRepeated {
+		return f.ftype()
+	}
+	switch f.Type.Scope() {
+	case SMessage:
+		return "*" + f.GoType()
+	case SBuiltin:
+		return f.GoType()
+	}
+	panic("unreachable")
+}
+
 func (f *Field) DefaultValue() string {
-	if f.Option&FRepeated != 0 {
+	if f.Flag&FRepeated != 0 {
 		return "nil"
 	}
 	switch f.Type.Scope() {

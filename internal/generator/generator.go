@@ -103,17 +103,22 @@ func (g *Generator) message(m *proto.Message) {
 				Name:     field.Name,
 				Sequence: field.Sequence,
 				Type:     g.typ(field.Type),
-				Option:   FNone,
 			}
 
 			switch {
 			case field.Repeated:
-				f.Option = FRepeated
+				f.Flag.Set(FRepeated, true)
 			case field.Optional:
-				f.Option = FOptional
+				f.Flag.Set(FOptional, true)
 			case field.Required:
-				f.Option = FRequired
+				f.Flag.Set(FRequired, true)
 			}
+
+			if (g.proto3() && !f.IsRepeated() && f.Type.Scope() == SMessage) ||
+				(g.proto2() && !f.IsRepeated() && f.Type.Name() != "bytes") {
+				f.Set(FPtr, true)
+			}
+
 			msg.Fields = append(msg.Fields, f)
 		case *proto.Message:
 			panic("nested message not implemented")
@@ -144,13 +149,13 @@ func (g *Generator) generate() {
 	for _, m := range g.messages {
 		g.Pln("type ", m.GoType(), " struct {")
 		for _, f := range m.Fields {
-			switch f.Option {
-			case FNone, FRepeated:
-				g.Pf("%s %s `protobuf:\"%d\"`\n", f.GoName(), g.ftype(f), f.Sequence)
-			case FRequired:
-				g.Pf("%s %s `protobuf:\"%d,req\"`\n", f.GoName(), g.ftype(f), f.Sequence)
-			case FOptional:
-				g.Pf("%s %s `protobuf:\"%d,opt\"`\n", f.GoName(), g.ftype(f), f.Sequence)
+			switch {
+			case f.Is(FRequired):
+				g.Pf("%s %s `protobuf:\"%d,req\"`\n", f.GoName(), f.ftype(), f.Sequence)
+			case f.Is(FOptional):
+				g.Pf("%s %s `protobuf:\"%d,opt\"`\n", f.GoName(), f.ftype(), f.Sequence)
+			default:
+				g.Pf("%s %s `protobuf:\"%d\"`\n", f.GoName(), f.ftype(), f.Sequence)
 			}
 		}
 		g.Pln("}")
@@ -171,8 +176,8 @@ func (g *Generator) generate() {
 func (g *Generator) getter(m *Message) {
 	for _, f := range m.Fields {
 		g.Pln()
-		g.Pf("func (x *%s) Get%s() %s {\n", m.GoType(), f.GoName(), g.rtype(f))
-		if f.Type.Scope() != SMessage && g.isptr(f) {
+		g.Pf("func (x *%s) Get%s() %s {\n", m.GoType(), f.GoName(), f.rtype())
+		if f.Type.Scope() != SMessage && f.IsPtr() {
 			g.Pf("if x != nil && x.%s != nil {\n", f.GoName())
 		} else {
 			g.Pln("if x != nil {")
@@ -188,57 +193,10 @@ func (g *Generator) getter(m *Message) {
 func (g *Generator) proto2() bool { return g.version == 2 }
 func (g *Generator) proto3() bool { return g.version == 3 }
 
-func (g *Generator) isptr(f *Field) bool {
-	if f.Option == FRepeated {
-		return false
-	}
-	if f.Type.Scope() == SMessage {
-		return true
-	}
-	if g.proto2() && f.Type.Name() != "bytes" {
-		return true
-	}
-	return false
-}
-
-// rtype is return type of the field
-func (g *Generator) rtype(f *Field) (s string) {
-	if f.Option == FRepeated {
-		return g.ftype(f)
-	}
-	switch f.Type.Scope() {
-	case SMessage:
-		return "*" + f.GoType()
-	case SBuiltin:
-		return f.GoType()
-	}
-	panic("unreachable")
-}
-
-// ftype is type of the field in struct field definition
-func (g *Generator) ftype(f *Field) (s string) {
-	switch f.Type.Scope() {
-	case SMessage:
-		s = "*" + f.GoType()
-	case SBuiltin:
-		if g.isptr(f) {
-			s = "*" + f.GoType()
-		} else {
-			s = f.GoType()
-		}
-	default:
-		panic("unreachable")
-	}
-	if f.Option == FRepeated {
-		s = "[]" + s
-	}
-	return
-}
-
 // sel select the filed
 func (g *Generator) sel(field *Field) string {
 	x := fmt.Sprintf("x.%s", field.GoName())
-	if field.Type.Scope() != SMessage && g.isptr(field) {
+	if field.Type.Scope() != SMessage && field.IsPtr() {
 		x = "*" + x
 	}
 	return x
