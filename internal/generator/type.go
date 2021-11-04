@@ -16,25 +16,25 @@ type Type interface {
 	Scope() Scope
 }
 
-type BuiltinType struct {
+type ScalarValueType struct {
 	name   string
 	gotype string
 	wire   string
 }
 
-func (b BuiltinType) GoType() string {
+func (b ScalarValueType) GoType() string {
 	return b.gotype
 }
 
-func (b BuiltinType) Name() string {
+func (b ScalarValueType) Name() string {
 	return b.name
 }
 
-func (b BuiltinType) Scope() Scope {
+func (b ScalarValueType) Scope() Scope {
 	return SBuiltin
 }
 
-func (b BuiltinType) WireType() Wire {
+func (b ScalarValueType) WireType() Wire {
 	switch b.wire {
 	case "fixed32":
 		return WireFixed32
@@ -60,7 +60,7 @@ const (
 	TSTRING
 )
 
-var BuiltinTypes = [...]BuiltinType{
+var ScalarValueTypes = [...]ScalarValueType{
 	{"int32", "int32", "varint"},
 	{"uint32", "uint32", "varint"},
 	{"int64", "int64", "varint"},
@@ -90,7 +90,7 @@ func (m *MessageType) Scope() Scope {
 }
 
 func (g *Generator) typ(t string) Type {
-	for _, bt := range BuiltinTypes {
+	for _, bt := range ScalarValueTypes {
 		if bt.Name() == t {
 			return bt
 		}
@@ -108,111 +108,6 @@ func (m *Message) GoType() string {
 	return CamelCase(m.Name)
 }
 
-type Flag uint
-
-const (
-	FOptional Flag = 1<<iota - 1
-	FRepeated
-	FRequired
-
-	// FPtr mark a pointer field.
-	FPtr
-)
-
-func (f Flag) Is(mask Flag) bool {
-	return f&mask != 0
-}
-
-func (f *Flag) Set(mask Flag, value bool) {
-	if value {
-		*f |= mask
-	} else {
-		*f &^= mask
-	}
-}
-
-type Field struct {
-	Flag
-
-	Type     Type
-	Name     string
-	Sequence int
-}
-
-func (f *Field) IsRepeated() bool {
-	return f.Is(FRepeated)
-}
-
-func (f *Field) IsPtr() bool {
-	return f.Is(FPtr)
-}
-
-func (f *Field) GoName() string {
-	return CamelCase(f.Name)
-}
-
-func (f *Field) GoType() string {
-	return f.Type.GoType()
-}
-
-// ftype is type of the field in struct field definition
-func (f *Field) ftype() (s string) {
-	switch f.Type.Scope() {
-	case SMessage:
-		s = "*" + f.GoType()
-	case SBuiltin:
-		if f.IsPtr() {
-			s = "*" + f.GoType()
-		} else {
-			s = f.GoType()
-		}
-	default:
-		panic("unreachable")
-	}
-	if f.Flag == FRepeated {
-		s = "[]" + s
-	}
-	return
-}
-
-// rtype is return type of the field
-func (f *Field) rtype() string {
-	if f.Flag == FRepeated {
-		return f.ftype()
-	}
-	switch f.Type.Scope() {
-	case SMessage:
-		return "*" + f.GoType()
-	case SBuiltin:
-		return f.GoType()
-	}
-	panic("unreachable")
-}
-
-func (f *Field) DefaultValue() string {
-	if f.Flag&FRepeated != 0 {
-		return "nil"
-	}
-	switch f.Type.Scope() {
-	case SBuiltin:
-		switch f.Type.Name() {
-		case "int32", "uint32", "int64", "uint64":
-			return "0"
-		case "float32", "float64":
-			return "0.0"
-		case "bool":
-			return "false"
-		case "bytes":
-			return "nil"
-		case "string":
-			return `""`
-		}
-	case SMessage:
-		return "nil"
-	}
-	panic("unreachable")
-}
-
 type Wire uint8
 
 const (
@@ -226,7 +121,7 @@ const (
 
 func wire(t Type) Wire {
 	switch t := t.(type) {
-	case BuiltinType:
+	case ScalarValueType:
 		return t.WireType()
 	case *MessageType:
 		return WireBytes

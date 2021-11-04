@@ -70,7 +70,7 @@ func (g *Generator) parse() {
 			case "proto2":
 				g.version = 2
 			default:
-				panic("unsupported syntax")
+				panic("unsupported syntax version")
 			}
 		case *proto.Option:
 			if elem.Name == "go_package" {
@@ -140,7 +140,7 @@ func (g *Generator) generate() {
 		g.Pln("import (")
 		g.Pln("    proto \"github.com/wdvxdr1123/yaproto\"")
 		if g.Options.GenMarshal {
-			//	g.Pln("\"encoding/binary\"")
+			// g.Pln("\"encoding/binary\"")
 		}
 		g.Pln(")")
 		g.Pln()
@@ -175,39 +175,8 @@ func (g *Generator) generate() {
 	}
 }
 
-func (g *Generator) getter(m *Message) {
-	for _, f := range m.Fields {
-		g.Pln()
-		g.Pf("func (x *%s) Get%s() %s {\n", m.GoType(), f.GoName(), f.rtype())
-		if f.Type.Scope() != SMessage && f.IsPtr() {
-			g.Pf("if x != nil && x.%s != nil {\n", f.GoName())
-		} else {
-			g.Pln("if x != nil {")
-		}
-		g.Pf("return %s\n", g.sel(f))
-		g.Pln("    }")
-		g.Pln("    return", f.DefaultValue())
-		g.Pln("}")
-		g.Pln()
-	}
-}
-
 func (g *Generator) proto2() bool { return g.version == 2 }
 func (g *Generator) proto3() bool { return g.version == 3 }
-
-// sel select the filed
-func (g *Generator) sel(field *Field) string {
-	x := fmt.Sprintf("x.%s", field.GoName())
-	if field.Type.Scope() != SMessage && field.IsPtr() {
-		x = "*" + x
-	}
-	return x
-}
-
-// selConv select the field and convert to dst Type.
-func (g *Generator) selConv(field *Field, dst Type) string {
-	return conv(g.sel(field), field.Type, dst)
-}
 
 func conv(x string, src, dst Type) string {
 	if dst != src {

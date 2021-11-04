@@ -50,7 +50,7 @@ func (g *Generator) marshalField(f *Field) {
 			if f.Type.Name() == "bool" {
 				g.Pf("proto.PutBool(buf, &i, %s)\n", name)
 			} else {
-				g.Pf("proto.PutVarint(buf, &i, %s)\n", conv(name, t, BuiltinTypes[TUINT64]))
+				g.Pf("proto.PutVarint(buf, &i, %s)\n", conv(name, t, ScalarValueTypes[TUINT64]))
 			}
 
 		case WireBytes:
@@ -65,19 +65,15 @@ func (g *Generator) marshalField(f *Field) {
 		}
 	}
 
-	if g.proto2() {
-		if f.IsRepeated() {
-			g.Pf("    for _, e := range %s {\n", g.sel(f))
-			key(keyValue(f.Sequence, WireBytes))
-			body("e", f.Type)
-			g.Pf("    }\n")
-		} else {
-			g.Pf("if x.%s != nil {\n", f.GoName())
-			key(keyValue(f.Sequence, wt))
-			body(g.sel(f), f.Type)
-			g.Pln("}")
-		}
+	if f.IsRepeated() {
+		g.Pf("    for _, e := range %s {\n", f.selector(true))
+		key(keyValue(f.Sequence, WireBytes))
+		body("e", f.Type)
+		g.Pf("    }\n")
 	} else {
-
+		g.Pf("if %s != %s {\n", f.selector(false), f.null())
+		key(keyValue(f.Sequence, wt))
+		body(f.selector(true), f.Type)
+		g.Pln("}")
 	}
 }
