@@ -50,9 +50,9 @@ func (f *MessageField) GoType() string {
 // ftype is type of the field in struct field definition
 func (f *MessageField) ftype() (s string) {
 	switch f.Type.Scope() {
-	case SMessage:
+	case CMessage:
 		s = "*" + f.GoType()
-	case SBuiltin, SEnum:
+	case CScalar, CEnum:
 		if f.IsPtr() {
 			s = "*" + f.GoType()
 		} else {
@@ -73,9 +73,9 @@ func (f *MessageField) rtype() string {
 		return f.ftype()
 	}
 	switch f.Type.Scope() {
-	case SMessage:
+	case CMessage:
 		return "*" + f.GoType()
-	case SBuiltin, SEnum:
+	case CScalar, CEnum:
 		return f.GoType()
 	}
 	panic("unreachable")
@@ -96,7 +96,7 @@ func (f *MessageField) null() string {
 		return "nil"
 	}
 	switch f.Type.Scope() {
-	case SBuiltin:
+	case CScalar:
 		switch f.Type.Name() {
 		case "int32", "uint32", "int64", "uint64", "sint32", "sint64":
 			return "0"
@@ -109,9 +109,9 @@ func (f *MessageField) null() string {
 		case "string":
 			return `""`
 		}
-	case SMessage:
+	case CMessage:
 		return "nil"
-	case SEnum:
+	case CEnum:
 		return "0"
 	}
 	panic("unreachable")
@@ -119,7 +119,7 @@ func (f *MessageField) null() string {
 
 func (f *MessageField) selector(deref bool) string {
 	x := "x." + f.GoName()
-	if deref && f.Type.Scope() != SMessage && f.IsPtr() {
+	if deref && f.Type.Scope() != CMessage && f.IsPtr() {
 		x = "*" + x
 	}
 	return x

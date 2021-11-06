@@ -65,7 +65,7 @@ func (g *Generator) marshalField(f *MessageField) {
 			}
 
 		case WireBytes:
-			if f.Type.Scope() == SMessage {
+			if f.Type.Scope() == CMessage {
 				g.Pf("l := %s.Size()\n", name)
 				g.Pf("proto.PutVarint(buf, &i, uint64(l))\n")
 				g.Pf("i += %s.MarshalTo(buf[i:])\n", name)

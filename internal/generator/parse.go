@@ -25,26 +25,27 @@ func (g *Generator) parse() {
 				g.gopackage = strings.TrimPrefix(p, "./;")
 			}
 		case *proto.Message:
-			g.parseMessage(elem)
+			g.parseMessage(elem, g.universe)
 		case *proto.Enum:
-			g.parseEnum(elem)
+			g.parseEnum(elem, g.universe)
 		}
 	}
 }
 
-func (g *Generator) parseMessage(m *proto.Message) {
-	msg := g.lookupMessage(m)
+func (g *Generator) parseMessage(m *proto.Message, s *Scope) {
+	msg := s.lookupMessage(m)
 	msg.Name = m.Name
+	scope := NewScope(s, m.Name)
 	for _, field := range m.Elements {
 		switch field := field.(type) {
 		case *proto.NormalField:
 			// the field type maybe not defined yet, so we should
-			// lookup the type later
+			// look up the type later
 			g.later(func() {
 				f := &MessageField{
 					Name:     field.Name,
 					Sequence: field.Sequence,
-					Type:     g.typ(field.Type),
+					Type:     scope.typ(field.Type),
 				}
 
 				switch {
@@ -58,7 +59,7 @@ func (g *Generator) parseMessage(m *proto.Message) {
 
 				if !f.IsRepeated() {
 					if (g.proto2() && f.Type.Name() != "bytes") ||
-						(g.proto3() && f.Type.Scope() == SMessage) {
+						(g.proto3() && f.Type.Scope() == CMessage) {
 						f.Set(FPtr, true)
 					}
 				}
@@ -67,13 +68,13 @@ func (g *Generator) parseMessage(m *proto.Message) {
 			})
 
 		case *proto.Message:
-			panic("nested parseMessage not implemented")
+			g.parseMessage(field, scope)
 		}
 	}
 }
 
-func (g *Generator) parseEnum(elem *proto.Enum) {
-	enum := g.lookupEnum(elem)
+func (g *Generator) parseEnum(elem *proto.Enum, s *Scope) {
+	enum := s.lookupEnum(elem)
 	enum.Name = elem.Name
 	for _, field := range elem.Elements {
 		switch field := field.(type) {

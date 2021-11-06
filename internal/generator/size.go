@@ -10,9 +10,9 @@ func (g *Generator) size(m *Message) {
 
 	for _, field := range m.Fields {
 		switch field.Type.Scope() {
-		case SBuiltin:
+		case CScalar:
 			g.sizeBuiltin(field)
-		case SMessage:
+		case CMessage:
 			g.sizeMessage(field)
 		}
 	}

@@ -23,7 +23,7 @@ type Generator struct {
 
 	version   int
 	gopackage string
-	objects   map[string]*Object
+	universe  *Scope
 	goImport  map[GoPackage]bool
 
 	delayed []func()
@@ -47,7 +47,7 @@ func New(def *proto.Proto) *Generator {
 	g := &Generator{
 		def:      def,
 		version:  2,
-		objects:  make(map[string]*Object),
+		universe: NewScope(nil, ""),
 		goImport: make(map[GoPackage]bool),
 	}
 	g.parse()
@@ -116,14 +116,7 @@ func (g *Generator) header(buffer *bytes.Buffer) {
 
 func (g *Generator) generate(buffer *bytes.Buffer) {
 	g.buf = buffer
-	// sort objects by type name
-	objects := make([]*Object, 0, len(g.objects))
-	for _, o := range g.objects {
-		objects = append(objects, o)
-	}
-	sort.Slice(objects, func(i, j int) bool {
-		return objects[i].GoType() < objects[j].GoType()
-	})
+	objects := g.mergeScope()
 
 	if g.Options.GenMarshal == 1 {
 		g.importGoPackage("github.com/segmentio/encoding/proto", "")
@@ -141,6 +134,28 @@ func (g *Generator) generate(buffer *bytes.Buffer) {
 			g.generateEnum(obj)
 		}
 	}
+}
+
+func (g *Generator) mergeScope() []*Object {
+	objects := make([]*Object, 0)
+	var visit func(*Scope)
+	visit = func(s *Scope) {
+		// merge all children scope
+		for _, child := range s.children {
+			visit(child)
+		}
+		// add all elems
+		for _, obj := range s.elems {
+			objects = append(objects, obj)
+		}
+	}
+	visit(g.universe)
+
+	sort.Slice(objects, func(i, j int) bool {
+		return objects[i].GoType() < objects[j].GoType()
+	})
+
+	return objects
 }
 
 func (g *Generator) generateMessage(m *Message) {

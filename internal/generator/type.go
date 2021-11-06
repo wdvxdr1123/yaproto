@@ -1,19 +1,19 @@
 package generator
 
-type Scope uint8
+type Class uint8
 
 const (
-	SBuiltin Scope = iota
-	SMessage
-	SEnum
+	CScalar Class = iota
+	CMessage
+	CEnum
 )
 
-var _, _, _ = SBuiltin, SMessage, SEnum
+var _, _, _ = CScalar, CMessage, CEnum
 
 type Type interface {
 	GoType() string
 	Name() string
-	Scope() Scope
+	Scope() Class
 }
 
 type ScalarValueType struct {
@@ -30,8 +30,8 @@ func (b ScalarValueType) Name() string {
 	return b.name
 }
 
-func (b ScalarValueType) Scope() Scope {
-	return SBuiltin
+func (b ScalarValueType) Scope() Class {
+	return CScalar
 }
 
 var _ Type = ScalarValueType{}
@@ -70,56 +70,39 @@ var ScalarValueTypes = [...]ScalarValueType{
 }
 
 type MessageType struct {
-	name string
-	def  *Message
+	name   string
+	gotype string
+	def    *Message
 }
 
 func (m *MessageType) GoType() string {
-	return CamelCase(m.name)
+	return m.gotype
 }
 
 func (m *MessageType) Name() string {
 	return m.name
 }
 
-func (m *MessageType) Scope() Scope {
-	return SMessage
+func (m *MessageType) Scope() Class {
+	return CMessage
 }
 
 type EnumType struct {
-	name string
-	def  *Enum
+	name   string
+	gotype string
+	def    *Enum
 }
 
 func (e *EnumType) GoType() string {
-	return CamelCase(e.name)
+	return e.gotype
 }
 
 func (e *EnumType) Name() string {
 	return e.name
 }
 
-func (e *EnumType) Scope() Scope {
-	return SEnum
-}
-
-func (g *Generator) typ(t string) Type {
-	for _, bt := range ScalarValueTypes {
-		if bt.Name() == t {
-			return bt
-		}
-	}
-	obj := g.lookup(t)
-	switch obj := obj.Obj.(type) {
-	case *Message:
-		return &MessageType{name: obj.Name, def: obj}
-	case *Enum:
-		return &EnumType{name: obj.Name, def: obj}
-	case nil:
-		panic("nil type")
-	default:
-		panic("unknown type")
-	}
+func (e *EnumType) Scope() Class {
+	return CEnum
 }
 
 type Wire uint8

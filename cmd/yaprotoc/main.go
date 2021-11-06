@@ -12,9 +12,9 @@ import (
 
 func main() {
 	output := flag.String("o", "", "output file")
-	getter := flag.Int("getter", 0, "generate getter methods")
+	getter := flag.Int("getter", 1, "generate getter methods")
 	size := flag.Bool("size", false, "generate size methods")
-	marshal := flag.Int("marshal", 0, "generate marshal/unmarshal methods")
+	marshal := flag.Int("marshal", 1, "generate marshal/unmarshal methods")
 	flag.Parse()
 	file, err := os.Open(flag.Args()[0])
 	if err != nil {
