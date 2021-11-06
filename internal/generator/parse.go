@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/emicklei/proto"
@@ -37,6 +38,8 @@ func (g *Generator) parseMessage(m *proto.Message) {
 	for _, field := range m.Elements {
 		switch field := field.(type) {
 		case *proto.NormalField:
+			// the field type maybe not defined yet, so we should
+			// lookup the type later
 			g.later(func() {
 				f := &MessageField{
 					Name:     field.Name,
@@ -82,4 +85,7 @@ func (g *Generator) parseEnum(elem *proto.Enum) {
 			enum.Fields = append(enum.Fields, f)
 		}
 	}
+	sort.Slice(enum.Fields, func(i, j int) bool {
+		return enum.Fields[i].Value < enum.Fields[j].Value
+	})
 }

@@ -2,6 +2,11 @@ package generator
 
 func (g *Generator) getter(m *Message) {
 	for _, f := range m.Fields {
+		if !f.IsPtr() && g.Options.GenGetter < 2 {
+			// option requires not to generate getter for non-pointer fields.
+			continue
+		}
+
 		g.Pln()
 		g.Pf("func (x *%s) Get%s() %s {\n", m.GoType(), f.GoName(), f.rtype())
 		if f.Type.Scope() != SMessage && f.IsPtr() {

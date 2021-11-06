@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	getter := flag.Bool("getter", false, "generate getter methods")
+	getter := flag.Int("getter", 0, "generate getter methods")
 	size := flag.Bool("size", false, "generate size methods")
 	marshal := flag.Bool("marshal", false, "generate marshal/unmarshal methods")
 	flag.Parse()

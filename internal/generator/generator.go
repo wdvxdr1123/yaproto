@@ -29,7 +29,11 @@ type Generator struct {
 	delayed []func()
 
 	Options struct {
-		GenGetter  bool
+		// GenGetter:
+		//	0: disabled
+		//	1: generate getters for pointer fields
+		//	2: generate getters for all fields
+		GenGetter  int
 		GenSize    bool
 		GenMarshal bool
 	}
@@ -44,6 +48,7 @@ func New(def *proto.Proto) *Generator {
 	}
 	g.parse()
 
+	// run all delayed functions
 	for len(g.delayed) > 0 {
 		g.delayed[0]()
 		g.delayed = g.delayed[1:]
@@ -107,9 +112,16 @@ func (g *Generator) header(buffer *bytes.Buffer) {
 
 func (g *Generator) generate(buffer *bytes.Buffer) {
 	g.buf = buffer
+	// sort objects by type name
+	objects := make([]*Object, 0, len(g.objects))
+	for _, o := range g.objects {
+		objects = append(objects, o)
+	}
+	sort.Slice(objects, func(i, j int) bool {
+		return objects[i].GoType() < objects[j].GoType()
+	})
 
-	// todo(wdvxdr): sort by name
-	for _, obj := range g.objects {
+	for _, obj := range objects {
 		switch obj := obj.Obj.(type) {
 		case *Message:
 			sort.Slice(obj.Fields, func(i, j int) bool {
@@ -135,7 +147,7 @@ func (g *Generator) generateMessage(m *Message) {
 	g.Pln("}")
 	g.Pln()
 
-	if g.Options.GenGetter {
+	if g.Options.GenGetter > 0 {
 		g.getter(m)
 	}
 	if g.Options.GenSize {
