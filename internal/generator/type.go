@@ -34,13 +34,16 @@ func (b ScalarValueType) Scope() Scope {
 	return SBuiltin
 }
 
+var _ Type = ScalarValueType{}
+var _ Type = &ScalarValueType{}
+
 func (b ScalarValueType) WireType() Wire {
 	switch b.wire {
 	case "fixed32":
 		return WireFixed32
 	case "fixed64":
 		return WireFixed64
-	case "varint":
+	case "varint", "zigzag32", "zigzag64":
 		return WireVarint
 	case "bytes":
 		return WireBytes
@@ -49,15 +52,7 @@ func (b ScalarValueType) WireType() Wire {
 }
 
 const (
-	TINT32 = iota
-	TUINT32
-	TINT64
-	TUINT64
-	TFLOAT32
-	TFLOAT64
-	TBOOL
-	TBYTES
-	TSTRING
+	TUINT64 = 3
 )
 
 var ScalarValueTypes = [...]ScalarValueType{
@@ -65,6 +60,8 @@ var ScalarValueTypes = [...]ScalarValueType{
 	{"uint32", "uint32", "varint"},
 	{"int64", "int64", "varint"},
 	{"uint64", "uint64", "varint"},
+	{"sint32", "int32", "zigzag32"},
+	{"sint64", "int64", "zigzag64"},
 	{"float32", "float32", "fixed32"},
 	{"float64", "float64", "fixed64"},
 	{"bool", "bool", "varint"},
@@ -89,23 +86,40 @@ func (m *MessageType) Scope() Scope {
 	return SMessage
 }
 
+type EnumType struct {
+	name string
+	def  *Enum
+}
+
+func (e *EnumType) GoType() string {
+	return CamelCase(e.name)
+}
+
+func (e *EnumType) Name() string {
+	return e.name
+}
+
+func (e *EnumType) Scope() Scope {
+	return SEnum
+}
+
 func (g *Generator) typ(t string) Type {
 	for _, bt := range ScalarValueTypes {
 		if bt.Name() == t {
 			return bt
 		}
 	}
-	m := g.lookup(t)
-	return &MessageType{name: t, def: m}
-}
-
-type Message struct {
-	Name   string
-	Fields []*Field
-}
-
-func (m *Message) GoType() string {
-	return CamelCase(m.Name)
+	obj := g.lookup(t)
+	switch obj := obj.Obj.(type) {
+	case *Message:
+		return &MessageType{name: obj.Name, def: obj}
+	case *Enum:
+		return &EnumType{name: obj.Name, def: obj}
+	case nil:
+		panic("nil type")
+	default:
+		panic("unknown type")
+	}
 }
 
 type Wire uint8
@@ -118,6 +132,20 @@ const (
 	WireEndGroup
 	WireFixed32
 )
+
+func (w Wire) String() string {
+	switch w {
+	case WireVarint:
+		return "varint"
+	case WireFixed64:
+		return "fixed64"
+	case WireBytes:
+		return "bytes"
+	case WireFixed32:
+		return "fixed32"
+	}
+	panic("unreachable")
+}
 
 func wire(t Type) Wire {
 	switch t := t.(type) {

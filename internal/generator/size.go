@@ -22,10 +22,10 @@ func (g *Generator) size(m *Message) {
 	g.Pln()
 }
 
-func (g *Generator) sizeBuiltin(f *Field) {
+func (g *Generator) sizeBuiltin(f *MessageField) {
 	typ := f.Type.(ScalarValueType)
 	ks := keySize(f.Sequence, typ.WireType())
-	fixed := func(size int, field *Field) {
+	fixed := func(size int, field *MessageField) {
 		if field.IsRepeated() {
 			g.Pf("n += %d*len(%s)\n", size, field.selector(true))
 		} else if g.proto2() {
@@ -86,7 +86,7 @@ func (g *Generator) sizeBuiltin(f *Field) {
 	}
 }
 
-func (g *Generator) sizeMessage(f *Field) {
+func (g *Generator) sizeMessage(f *MessageField) {
 	ks := keySize(f.Sequence, WireBytes)
 	if f.IsRepeated() {
 		g.Pf("for _, e := range x.%s {\n", f.GoName())

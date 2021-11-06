@@ -26,7 +26,7 @@ func (x *%s) MarshalTo(buf []byte) int {
 	g.Pln()
 }
 
-func (g *Generator) marshalField(f *Field) {
+func (g *Generator) marshalField(f *MessageField) {
 	wt := wire(f.Type)
 
 	key := func(kv uint32) {

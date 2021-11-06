@@ -23,7 +23,7 @@ func (f *Flag) Set(mask Flag, value bool) {
 	}
 }
 
-type Field struct {
+type MessageField struct {
 	Flag
 
 	Type     Type
@@ -31,28 +31,28 @@ type Field struct {
 	Sequence int
 }
 
-func (f *Field) IsRepeated() bool {
+func (f *MessageField) IsRepeated() bool {
 	return f.Is(FRepeated)
 }
 
-func (f *Field) IsPtr() bool {
+func (f *MessageField) IsPtr() bool {
 	return f.Is(FPtr)
 }
 
-func (f *Field) GoName() string {
+func (f *MessageField) GoName() string {
 	return CamelCase(f.Name)
 }
 
-func (f *Field) GoType() string {
+func (f *MessageField) GoType() string {
 	return f.Type.GoType()
 }
 
 // ftype is type of the field in struct field definition
-func (f *Field) ftype() (s string) {
+func (f *MessageField) ftype() (s string) {
 	switch f.Type.Scope() {
 	case SMessage:
 		s = "*" + f.GoType()
-	case SBuiltin:
+	case SBuiltin, SEnum:
 		if f.IsPtr() {
 			s = "*" + f.GoType()
 		} else {
@@ -68,20 +68,20 @@ func (f *Field) ftype() (s string) {
 }
 
 // rtype is return type of the field
-func (f *Field) rtype() string {
+func (f *MessageField) rtype() string {
 	if f.Flag == FRepeated {
 		return f.ftype()
 	}
 	switch f.Type.Scope() {
 	case SMessage:
 		return "*" + f.GoType()
-	case SBuiltin:
+	case SBuiltin, SEnum:
 		return f.GoType()
 	}
 	panic("unreachable")
 }
 
-func (f *Field) Elem() *Field {
+func (f *MessageField) Elem() *MessageField {
 	if f.IsPtr() {
 		nf := *f
 		nf.Set(FPtr, false)
@@ -91,14 +91,14 @@ func (f *Field) Elem() *Field {
 }
 
 // null returns the null value of the field.
-func (f *Field) null() string {
+func (f *MessageField) null() string {
 	if f.IsRepeated() || f.IsPtr() {
 		return "nil"
 	}
 	switch f.Type.Scope() {
 	case SBuiltin:
 		switch f.Type.Name() {
-		case "int32", "uint32", "int64", "uint64":
+		case "int32", "uint32", "int64", "uint64", "sint32", "sint64":
 			return "0"
 		case "float32", "float64":
 			return "0.0"
@@ -111,11 +111,13 @@ func (f *Field) null() string {
 		}
 	case SMessage:
 		return "nil"
+	case SEnum:
+		return "0"
 	}
 	panic("unreachable")
 }
 
-func (f *Field) selector(deref bool) string {
+func (f *MessageField) selector(deref bool) string {
 	x := "x." + f.GoName()
 	if deref && f.Type.Scope() != SMessage && f.IsPtr() {
 		x = "*" + x
@@ -124,6 +126,15 @@ func (f *Field) selector(deref bool) string {
 }
 
 // conv converts the filed to dst Type.
-func (f *Field) conv(dst Type) string {
+func (f *MessageField) conv(dst Type) string {
 	return conv(f.selector(true), f.Type, dst)
+}
+
+type EnumField struct {
+	Name  string
+	Value int
+}
+
+func (e *EnumField) GoName() string {
+	return CamelCase(e.Name)
 }

@@ -24,6 +24,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defination.Filename = flag.Args()[0]
 
 	g := generator.New(defination)
 	g.Options.GenGetter = *getter

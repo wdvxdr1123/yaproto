@@ -1,11 +1,10 @@
 package generator
 
-// from https://github.com/protocolbuffers/protobuf-go/blob/master/internal/strs/strings.go
-
 // CamelCase camel-cases a protobuf name for use as a Go identifier.
 //
 // If there is an interior underscore followed by a lower case letter,
 // drop the underscore and convert the letter to upper case.
+// from https://github.com/protocolbuffers/protobuf-go/blob/master/internal/strs/strings.go
 func CamelCase(s string) string {
 	// Invariant: if the next letter is lower case, it must be converted
 	// to upper case.
@@ -66,4 +65,30 @@ func keySize(fieldNumber int, wire Wire) int {
 
 func keyValue(fieldNumber int, wire Wire) uint32 {
 	return uint32(fieldNumber)<<3 | uint32(wire)
+}
+
+func wireString(t Type) string {
+	switch t := t.(type) {
+	case ScalarValueType:
+		return t.wire
+	case *MessageType:
+		return "bytes"
+	case *EnumType:
+		return "varint"
+	}
+	panic("unreachable")
+}
+
+func (g *Generator) proto2() bool { return g.version == 2 }
+func (g *Generator) proto3() bool { return g.version == 3 }
+
+func (g *Generator) imports(path, alias string) {
+	g.goImport[GoPackage{path, alias}] = true
+}
+
+func conv(x string, src, dst Type) string {
+	if dst != src {
+		x = dst.GoType() + "(" + x + ")"
+	}
+	return x
 }
