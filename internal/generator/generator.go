@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/format"
 	"io"
+	"path"
 	"reflect"
 	"sort"
 	"strconv"
@@ -47,13 +48,13 @@ func New(pkg *importer.Package) *Generator {
 		imported: make(map[string]*importer.Package),
 	}
 
-	for _, path := range g.Pkg.Imported {
-		p, err := importer.Import(path)
+	for _, packagePath := range g.Pkg.Imported {
+		p, err := importer.Import(packagePath)
 		if err != nil {
 			panic(err)
 		}
 		g.imported[p.Package] = p
-		g.importGoPackage(p.OutputPath, p.GoPackage)
+		g.importGoPackage(path.Join(importer.ProtoPath, p.OutputPath), p.GoPackage)
 	}
 
 	return g
@@ -194,4 +195,11 @@ func (g *Generator) generateEnum(enum *types.Enum) {
 	return p
 }`, enum.GoType(), enum.GoType(), enum.GoType())
 	g.Pln()
+}
+
+func (g *Generator) proto2() bool { return g.Pkg.Version == 2 }
+func (g *Generator) proto3() bool { return g.Pkg.Version == 3 }
+
+func (g *Generator) importGoPackage(path, alias string) {
+	g.goImport[GoPackage{path, alias}] = true
 }

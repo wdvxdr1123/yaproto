@@ -1,7 +1,9 @@
 package importer
 
 import (
+	"errors"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -42,18 +44,25 @@ func Import(path string) (*Package, error) {
 		return nil, err
 	}
 	defer file.Close()
+
+	if runtime.GOOS == "windows" {
+		p.Path = strings.Replace(p.Path, "\\", "/", -1)
+	}
+
 	pb, err := proto.NewParser(file).Parse()
 	if err != nil {
 		return nil, err
 	}
 	p.Proto = pb
 	p.Proto.Filename = path
-	p.parse()
+	if err := p.parse(); err != nil {
+		return nil, err
+	}
 	Packages[path] = p
 	return p, nil
 }
 
-func (pkg *Package) parse() {
+func (pkg *Package) parse() error {
 	for _, elem := range pkg.Proto.Elements {
 		switch elem := elem.(type) {
 		case *proto.Package:
@@ -65,7 +74,7 @@ func (pkg *Package) parse() {
 			case "proto2":
 				pkg.Version = 2
 			default:
-				panic("unsupported syntax version")
+				return errors.New("unsupported syntax version")
 			}
 		case *proto.Option:
 			if elem.Name == "go_package" {
@@ -73,14 +82,17 @@ func (pkg *Package) parse() {
 				for i, str := range strings.Split(gopkg, ";") {
 					switch i {
 					case 0:
-						pkg.OutputPath = ProtoPath + "/" + str
+						pkg.OutputPath = str
 					case 1:
 						pkg.GoPackage = str
 					}
 				}
 			}
 		case *proto.Import:
-			Import(elem.Filename)
+			_, err := Import(elem.Filename)
+			if err != nil {
+				return err
+			}
 			pkg.Imported = append(pkg.Imported, elem.Filename)
 		}
 	}
@@ -94,7 +106,7 @@ func (pkg *Package) parse() {
 		}
 
 	}
-
+	return nil
 }
 
 func (pkg *Package) later(f func()) {

@@ -29,6 +29,9 @@ func (pkg *Package) parseMessage(m *proto.Message, s *types.Scope) {
 					t := field.Type
 					dot := strings.LastIndexByte(t, '.')
 					ipkg := pkg.lookup(t[:dot])
+					if ipkg == nil {
+						panic("unknown package" + t[:dot])
+					}
 					gotype := ipkg.GoPackage + "." + utils.CamelCase(t[dot+1:])
 					f.Type = &types.ImportedType{TypeName: t, Gotype: gotype}
 				} else {

@@ -79,9 +79,19 @@ func main() {
 				g.Options.GenMarshal = *marshal
 				g.Options.GenSize = *size || *marshal > 1
 
-				outputPath := path.Clean(filepath.Join(wd, *output))
-				outfile := filepath.Join(outputPath, strings.TrimSuffix(pkg.Path, ".proto")+".pb.go")
-				_ = os.MkdirAll(filepath.Dir(outfile), 0644)
+				if runtime.GOOS == "windows" {
+					wd = strings.Replace(wd, "\\", "/", -1)
+				}
+				outputPath := path.Clean(path.Join(wd, *output, pkg.OutputPath))
+
+				filename := strings.TrimSuffix(pkg.Path, ".proto")
+				dot := strings.LastIndexByte(filename, '/')
+				if dot > 0 {
+					filename = filename[dot+1:]
+				}
+
+				outfile := path.Join(outputPath, filename+".pb.go")
+				_ = os.MkdirAll(path.Dir(outfile), 0644)
 
 				out, _ := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 				g.Generate(out)
