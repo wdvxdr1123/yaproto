@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
 
 	"github.com/emicklei/proto"
 
@@ -10,9 +11,10 @@ import (
 )
 
 func main() {
+	output := flag.String("o", "", "output file")
 	getter := flag.Int("getter", 0, "generate getter methods")
 	size := flag.Bool("size", false, "generate size methods")
-	marshal := flag.Bool("marshal", false, "generate marshal/unmarshal methods")
+	marshal := flag.Int("marshal", 0, "generate marshal/unmarshal methods")
 	flag.Parse()
 	file, err := os.Open(flag.Args()[0])
 	if err != nil {
@@ -29,6 +31,16 @@ func main() {
 	g := generator.New(defination)
 	g.Options.GenGetter = *getter
 	g.Options.GenMarshal = *marshal
-	g.Options.GenSize = *size || *marshal
-	g.Generate(os.Stdout)
+	g.Options.GenSize = *size || *marshal > 1
+
+	var out *os.File
+	if *output == "" {
+		fname := file.Name()
+		*output = strings.TrimSuffix(fname, ".proto") + ".pb.go"
+	}
+	out, err = os.OpenFile(*output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		panic(err)
+	}
+	g.Generate(out)
 }

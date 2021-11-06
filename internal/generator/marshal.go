@@ -5,11 +5,22 @@ import (
 )
 
 func (g *Generator) marshal(m *Message) {
-	g.Pf(`func (x *%s) Marshal() []byte {
+	if g.Options.GenMarshal == 1 {
+		g.Pf(`func (x *%s) Marshal() ([]byte, error) {
+	if x == nil {
+		return nil, errors.New("nil message")
+	}
+	return proto.Marshal(x)
+}`, m.GoType())
+		g.Pln()
+		return
+	}
+
+	g.Pf(`func (x *%s) Marshal() ([]byte, error) {
 	size := x.Size()
 	buf := make([]byte, size)
 	n := x.MarshalTo(buf[:size])
-	return buf[:n]
+	return buf[:n], nil
 }
 
 func (x *%s) MarshalTo(buf []byte) int {

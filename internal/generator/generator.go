@@ -33,9 +33,13 @@ type Generator struct {
 		//	0: disabled
 		//	1: generate getters for pointer fields
 		//	2: generate getters for all fields
-		GenGetter  int
+		GenGetter int
+		// GenMarshal:
+		//	0: disabled
+		//	1: generate Marshal helper
+		//	2: generate Marshal specific methods without reflection
+		GenMarshal int
 		GenSize    bool
-		GenMarshal bool
 	}
 }
 
@@ -104,9 +108,9 @@ func (g *Generator) header(buffer *bytes.Buffer) {
 			return imports[i].Path < imports[j].Path
 		})
 		for _, p := range imports {
-			g.Pf("%s \"%s\"", p.Alias, strconv.Quote(p.Path))
+			g.Pf("%s %s\n", p.Alias, strconv.Quote(p.Path))
 		}
-		g.Pln("}\n")
+		g.Pln(")\n")
 	}
 }
 
@@ -120,6 +124,11 @@ func (g *Generator) generate(buffer *bytes.Buffer) {
 	sort.Slice(objects, func(i, j int) bool {
 		return objects[i].GoType() < objects[j].GoType()
 	})
+
+	if g.Options.GenMarshal == 1 {
+		g.importGoPackage("github.com/segmentio/encoding/proto", "")
+		g.importGoPackage("github.com/pkg/errors", "")
+	}
 
 	for _, obj := range objects {
 		switch obj := obj.Obj.(type) {
@@ -153,7 +162,7 @@ func (g *Generator) generateMessage(m *Message) {
 	if g.Options.GenSize {
 		g.size(m)
 	}
-	if g.Options.GenMarshal {
+	if g.Options.GenMarshal > 0 {
 		g.marshal(m)
 	}
 }

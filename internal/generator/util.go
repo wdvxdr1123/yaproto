@@ -82,7 +82,7 @@ func wireString(t Type) string {
 func (g *Generator) proto2() bool { return g.version == 2 }
 func (g *Generator) proto3() bool { return g.version == 3 }
 
-func (g *Generator) imports(path, alias string) {
+func (g *Generator) importGoPackage(path, alias string) {
 	g.goImport[GoPackage{path, alias}] = true
 }
 

@@ -1,17 +1,12 @@
 package generator
 
 import (
-	"sync"
-
 	"github.com/emicklei/proto"
 )
 
 type Object struct {
 	Name string
 	Obj  obj
-	Type Type
-
-	once sync.Once
 }
 
 func (o *Object) GoType() string {

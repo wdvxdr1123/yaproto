@@ -2,7 +2,8 @@ package generator
 
 func (g *Generator) getter(m *Message) {
 	for _, f := range m.Fields {
-		if !f.IsPtr() && g.Options.GenGetter < 2 {
+		if g.Options.GenGetter < 2 &&
+			(!f.IsPtr() || f.Type.Scope() == SMessage) {
 			// option requires not to generate getter for non-pointer fields.
 			continue
 		}
