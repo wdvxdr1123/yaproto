@@ -1,4 +1,8 @@
-package generator
+package types
+
+import (
+	"github.com/wdvxdr1123/yaproto/internal/utils"
+)
 
 type Object struct {
 	Name string
@@ -8,9 +12,9 @@ type Object struct {
 func (o *Object) GoType() string {
 	switch obj := o.Obj.(type) {
 	case *Message:
-		return CamelCase(obj.Name)
+		return utils.CamelCase(obj.Name)
 	case *Enum:
-		return CamelCase(obj.Name)
+		return utils.CamelCase(obj.Name)
 	default:
 		return ""
 	}
@@ -33,7 +37,7 @@ type Message struct {
 }
 
 func (m *Message) GoType() string {
-	return m.scope.resolveName(m.Name)
+	return m.scope.ResolveName(m.Name)
 }
 
 type Enum struct {
@@ -43,9 +47,5 @@ type Enum struct {
 }
 
 func (e *Enum) GoType() string {
-	return CamelCase(e.Name)
-}
-
-func (g *Generator) Lookup(name string) *Object {
-	return g.universe.Lookup(name)
+	return utils.CamelCase(e.Name)
 }

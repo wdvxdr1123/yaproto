@@ -1,23 +1,27 @@
-package generator
+package types
 
-import "github.com/emicklei/proto"
+import (
+	"github.com/emicklei/proto"
+
+	"github.com/wdvxdr1123/yaproto/internal/utils"
+)
 
 type Scope struct {
 	name     string
 	parent   *Scope
-	children []*Scope
+	Children []*Scope
 
-	elems map[string]*Object
+	Elems map[string]*Object
 }
 
 func NewScope(parent *Scope, name string) *Scope {
 	s := &Scope{
 		parent: parent,
-		name:   CamelCase(name),
-		elems:  make(map[string]*Object),
+		name:   utils.CamelCase(name),
+		Elems:  make(map[string]*Object),
 	}
 	if parent != nil {
-		parent.children = append(parent.children, s)
+		parent.Children = append(parent.Children, s)
 	}
 	return s
 }
@@ -29,12 +33,12 @@ func (s *Scope) Lookup(name string) *Object {
 	}
 	obj := new(Object)
 	obj.Name = name
-	s.elems[name] = obj
+	s.Elems[name] = obj
 	return obj
 }
 
 func (s *Scope) LookupOK(name string) (*Object, bool) {
-	m, ok := s.elems[name]
+	m, ok := s.Elems[name]
 	return m, ok
 }
 
@@ -47,7 +51,7 @@ func (s *Scope) LookupParent(name string) (*Scope, *Object) {
 	return nil, nil
 }
 
-func (s *Scope) typ(t string) Type {
+func (s *Scope) Type(t string) Type {
 	for _, bt := range ScalarValueTypes {
 		if bt.Name() == t {
 			return bt
@@ -58,9 +62,9 @@ func (s *Scope) typ(t string) Type {
 
 	switch obj := obj.Obj.(type) {
 	case *Message:
-		return &MessageType{name: obj.Name, gotype: scope.resolveName(obj.Name), def: obj}
+		return &MessageType{name: obj.Name, gotype: scope.ResolveName(obj.Name)}
 	case *Enum:
-		return &EnumType{name: obj.Name, gotype: scope.resolveName(obj.Name), def: obj}
+		return &EnumType{name: obj.Name, gotype: scope.ResolveName(obj.Name)}
 	case nil:
 		panic("nil type: " + t)
 	default:
@@ -68,7 +72,7 @@ func (s *Scope) typ(t string) Type {
 	}
 }
 
-func (s *Scope) lookupMessage(m *proto.Message) (msg *Message) {
+func (s *Scope) LookupMessage(m *proto.Message) (msg *Message) {
 	obj := s.Lookup(m.Name)
 	if obj.Obj != nil {
 		msg = obj.Obj.(*Message)
@@ -80,7 +84,7 @@ func (s *Scope) lookupMessage(m *proto.Message) (msg *Message) {
 	return msg
 }
 
-func (s *Scope) lookupEnum(m *proto.Enum) (msg *Enum) {
+func (s *Scope) LookupEnum(m *proto.Enum) (msg *Enum) {
 	obj := s.Lookup(m.Name)
 	if obj.Obj != nil {
 		msg = obj.Obj.(*Enum)
@@ -91,7 +95,7 @@ func (s *Scope) lookupEnum(m *proto.Enum) (msg *Enum) {
 	return msg
 }
 
-func (s *Scope) resolveName(name string) string {
+func (s *Scope) ResolveName(name string) string {
 	scope := s
 	var prefixes []string
 	for scope.parent != nil {
@@ -107,7 +111,7 @@ func (s *Scope) resolveName(name string) string {
 	}
 
 	if prefix != "" {
-		return prefix + CamelCase(name)
+		return prefix + utils.CamelCase(name)
 	}
-	return CamelCase(name)
+	return utils.CamelCase(name)
 }

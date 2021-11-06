@@ -1,4 +1,8 @@
-package generator
+package types
+
+import (
+	"github.com/wdvxdr1123/yaproto/internal/utils"
+)
 
 type Flag uint
 
@@ -40,15 +44,15 @@ func (f *MessageField) IsPtr() bool {
 }
 
 func (f *MessageField) GoName() string {
-	return CamelCase(f.Name)
+	return utils.CamelCase(f.Name)
 }
 
 func (f *MessageField) GoType() string {
 	return f.Type.GoType()
 }
 
-// ftype is type of the field in struct field definition
-func (f *MessageField) ftype() (s string) {
+// Ftype is type of the field in struct field definition
+func (f *MessageField) Ftype() (s string) {
 	switch f.Type.Scope() {
 	case CMessage:
 		s = "*" + f.GoType()
@@ -67,10 +71,10 @@ func (f *MessageField) ftype() (s string) {
 	return
 }
 
-// rtype is return type of the field
-func (f *MessageField) rtype() string {
+// Rtype is return type of the field
+func (f *MessageField) Rtype() string {
 	if f.Flag == FRepeated {
-		return f.ftype()
+		return f.Ftype()
 	}
 	switch f.Type.Scope() {
 	case CMessage:
@@ -91,7 +95,7 @@ func (f *MessageField) Elem() *MessageField {
 }
 
 // null returns the null value of the field.
-func (f *MessageField) null() string {
+func (f *MessageField) Null() string {
 	if f.IsRepeated() || f.IsPtr() {
 		return "nil"
 	}
@@ -117,7 +121,7 @@ func (f *MessageField) null() string {
 	panic("unreachable")
 }
 
-func (f *MessageField) selector(deref bool) string {
+func (f *MessageField) Selector(deref bool) string {
 	x := "x." + f.GoName()
 	if deref && f.Type.Scope() != CMessage && f.IsPtr() {
 		x = "*" + x
@@ -125,9 +129,9 @@ func (f *MessageField) selector(deref bool) string {
 	return x
 }
 
-// conv converts the filed to dst Type.
-func (f *MessageField) conv(dst Type) string {
-	return conv(f.selector(true), f.Type, dst)
+// Conv converts the filed to dst Type.
+func (f *MessageField) Conv(dst Type) string {
+	return Convert(f.Selector(true), f.Type, dst)
 }
 
 type EnumField struct {
@@ -136,5 +140,5 @@ type EnumField struct {
 }
 
 func (e *EnumField) GoName() string {
-	return CamelCase(e.Name)
+	return utils.CamelCase(e.Name)
 }

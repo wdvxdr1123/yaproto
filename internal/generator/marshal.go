@@ -2,9 +2,12 @@ package generator
 
 import (
 	"fmt"
+
+	"github.com/wdvxdr1123/yaproto/internal/types"
+	"github.com/wdvxdr1123/yaproto/internal/utils"
 )
 
-func (g *Generator) marshal(m *Message) {
+func (g *Generator) marshal(m *types.Message) {
 	if g.Options.GenMarshal == 1 {
 		g.Pf(`func (x *%s) Marshal() ([]byte, error) {
 	if x == nil {
@@ -25,7 +28,7 @@ func (g *Generator) marshal(m *Message) {
 
 func (x *%s) MarshalTo(buf []byte) int {
 	var i int
-	_ = i`, CamelCase(m.Name), CamelCase(m.Name))
+	_ = i`, utils.CamelCase(m.Name), utils.CamelCase(m.Name))
 	g.Pln()
 
 	for _, field := range m.Fields {
@@ -37,8 +40,8 @@ func (x *%s) MarshalTo(buf []byte) int {
 	g.Pln()
 }
 
-func (g *Generator) marshalField(f *MessageField) {
-	wt := wire(f.Type)
+func (g *Generator) marshalField(f *types.MessageField) {
+	wt := types.WireType(f.Type)
 
 	key := func(kv uint32) {
 		for kv >= 0x80 {
@@ -51,21 +54,21 @@ func (g *Generator) marshalField(f *MessageField) {
 		g.Pf("i++\n")
 	}
 
-	body := func(name string, t Type) {
+	body := func(name string, t types.Type) {
 		// value
 		switch wt {
 		default:
 			panic(fmt.Errorf("unhandled wire type: %d", wt))
 
-		case WireVarint:
+		case types.WireVarint:
 			if f.Type.Name() == "bool" {
 				g.Pf("proto.PutBool(buf, &i, %s)\n", name)
 			} else {
-				g.Pf("proto.PutVarint(buf, &i, %s)\n", conv(name, t, ScalarValueTypes[TUINT64]))
+				g.Pf("proto.PutVarint(buf, &i, %s)\n", types.Convert(name, t, types.ScalarValueTypes[types.TUINT64]))
 			}
 
-		case WireBytes:
-			if f.Type.Scope() == CMessage {
+		case types.WireBytes:
+			if f.Type.Scope() == types.CMessage {
 				g.Pf("l := %s.Size()\n", name)
 				g.Pf("proto.PutVarint(buf, &i, uint64(l))\n")
 				g.Pf("i += %s.MarshalTo(buf[i:])\n", name)
@@ -77,14 +80,14 @@ func (g *Generator) marshalField(f *MessageField) {
 	}
 
 	if f.IsRepeated() {
-		g.Pf("    for _, e := range %s {\n", f.selector(true))
-		key(keyValue(f.Sequence, WireBytes))
+		g.Pf("    for _, e := range %s {\n", f.Selector(true))
+		key(types.KeyValue(f.Sequence, types.WireBytes))
 		body("e", f.Type)
 		g.Pf("    }\n")
 	} else {
-		g.Pf("if %s != %s {\n", f.selector(false), f.null())
-		key(keyValue(f.Sequence, wt))
-		body(f.selector(true), f.Type)
+		g.Pf("if %s != %s {\n", f.Selector(false), f.Null())
+		key(types.KeyValue(f.Sequence, wt))
+		body(f.Selector(true), f.Type)
 		g.Pln("}")
 	}
 }
