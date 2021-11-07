@@ -38,7 +38,10 @@ func main() {
 		if filepath.Ext(path) != ".proto" {
 			return nil
 		}
-		_, err = importer.Import(path)
+		pkg, err := importer.Import(path)
+		pkg.Error = func(err error) {
+			println(path, err.Error())
+		}
 		return err
 	})
 

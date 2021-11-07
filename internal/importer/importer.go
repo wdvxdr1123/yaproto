@@ -2,10 +2,12 @@ package importer
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"runtime"
 	"strings"
 	"sync"
+	"text/scanner"
 
 	"github.com/emicklei/proto"
 
@@ -18,6 +20,7 @@ var ProtoPath = ""
 type Package struct {
 	Path    string
 	Package string
+	Error   func(err error)
 
 	Proto      *proto.Proto
 	Imported   []string
@@ -28,6 +31,7 @@ type Package struct {
 
 	once    sync.Once
 	delayed []func()
+	pos     scanner.Position
 }
 
 func Import(path string) (*Package, error) {
@@ -36,7 +40,10 @@ func Import(path string) (*Package, error) {
 	}
 
 	p := &Package{
-		Path:     path,
+		Path: path,
+		Error: func(err error) {
+			panic(err)
+		},
 		Universe: types.NewScope(nil, ""),
 	}
 	file, err := os.Open(path)
@@ -68,13 +75,14 @@ func (pkg *Package) parse() error {
 		case *proto.Package:
 			pkg.Package = elem.Name
 		case *proto.Syntax:
+			pkg.setPos(elem.Position)
 			switch elem.Value {
 			case "proto3":
 				pkg.Version = 3
 			case "proto2":
 				pkg.Version = 2
 			default:
-				return errors.New("unsupported syntax version")
+				pkg.errorf("unsupported syntax version: %s", elem.Value)
 			}
 		case *proto.Option:
 			if elem.Name == "go_package" {
@@ -91,7 +99,7 @@ func (pkg *Package) parse() error {
 		case *proto.Import:
 			_, err := Import(elem.Filename)
 			if err != nil {
-				return err
+				pkg.error(err)
 			}
 			pkg.Imported = append(pkg.Imported, elem.Filename)
 		}
@@ -104,7 +112,6 @@ func (pkg *Package) parse() error {
 		case *proto.Enum:
 			pkg.parseEnum(elem, pkg.Universe)
 		}
-
 	}
 	return nil
 }
@@ -130,4 +137,22 @@ func (pkg *Package) lookup(s string) *Package {
 		}
 	}
 	return nil
+}
+
+func (pkg *Package) setPos(pos scanner.Position) {
+	pkg.pos = pos
+}
+
+func (pkg *Package) error(err error) {
+	e := &Error{
+		Pos: pkg.pos,
+		Err: err,
+	}
+	if pkg.Error != nil {
+		pkg.Error(e)
+	}
+}
+
+func (pkg *Package) errorf(format string, args ...interface{}) {
+	pkg.error(errors.New(fmt.Sprintf(format, args...)))
 }

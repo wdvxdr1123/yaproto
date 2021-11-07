@@ -20,6 +20,7 @@ func (pkg *Package) parseMessage(m *proto.Message, s *types.Scope) {
 			// the field type maybe not defined yet, so we should
 			// look up the type later
 			pkg.later(func() {
+				pkg.setPos(field.Position)
 				f := &types.MessageField{
 					Name:     field.Name,
 					Sequence: field.Sequence,
@@ -30,12 +31,18 @@ func (pkg *Package) parseMessage(m *proto.Message, s *types.Scope) {
 					dot := strings.LastIndexByte(t, '.')
 					ipkg := pkg.lookup(t[:dot])
 					if ipkg == nil {
-						panic("unknown package" + t[:dot])
+						pkg.errorf("unknown package: %s", t[:dot])
+						return
 					}
 					gotype := ipkg.GoPackage + "." + utils.CamelCase(t[dot+1:])
 					f.Type = &types.ImportedType{TypeName: t, Gotype: gotype}
 				} else {
-					f.Type = scope.Type(field.Type)
+					typ, err := scope.Type(field.Type)
+					if err != nil {
+						pkg.error(err)
+						return
+					}
+					f.Type = typ
 				}
 
 				switch {

@@ -51,24 +51,25 @@ func (s *Scope) LookupParent(name string) (*Scope, *Object) {
 	return nil, nil
 }
 
-func (s *Scope) Type(t string) Type {
+func (s *Scope) Type(t string) (Type, error) {
 	for _, bt := range ScalarValueTypes {
 		if bt.Name() == t {
-			return bt
+			return bt, nil
 		}
 	}
 
 	scope, obj := s.LookupParent(t)
+	if obj == nil {
+		return nil, &UnknownTypeError{Type: t}
+	}
 
 	switch obj := obj.Obj.(type) {
 	case *Message:
-		return &MessageType{name: obj.Name, gotype: scope.ResolveName(obj.Name)}
+		return &MessageType{name: obj.Name, gotype: scope.ResolveName(obj.Name)}, nil
 	case *Enum:
-		return &EnumType{name: obj.Name, gotype: scope.ResolveName(obj.Name)}
-	case nil:
-		panic("nil type: " + t)
+		return &EnumType{name: obj.Name, gotype: scope.ResolveName(obj.Name)}, nil
 	default:
-		panic("unknown type")
+		return nil, &UnknownTypeError{Type: t}
 	}
 }
 
