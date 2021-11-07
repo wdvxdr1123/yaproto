@@ -38,6 +38,12 @@ func main() {
 		if info.IsDir() {
 			return nil
 		}
+
+		if runtime.GOOS == "windows" {
+			// avoid parse proto file twice
+			path = strings.Replace(path, "\\", "/", -1)
+		}
+
 		// only parse proto files
 		if filepath.Ext(path) != ".proto" {
 			return nil

@@ -4,19 +4,19 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
 	"text/scanner"
 
 	"github.com/emicklei/proto"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/wdvxdr1123/yaproto/internal/types"
 )
 
 var (
-	mu       = sync.RWMutex{}
-	packages = make(map[string]*Package)
+	packages = sync.Map{}
+	single   = singleflight.Group{}
 )
 
 var ProtoPath = ""
@@ -39,40 +39,41 @@ type Package struct {
 }
 
 func Import(path string) (*Package, error) {
-	if pkg, ok := packages[path]; ok {
-		return pkg, nil
+	pkg, ok := packages.Load(path)
+	if ok {
+		return pkg.(*Package), nil
 	}
 
-	p := &Package{
-		Path: path,
-		Error: func(err error) {
-			panic(err)
-		},
-		Universe: types.NewScope(nil, ""),
-	}
-	file, err := os.Open(path)
+	pkg, err, _ := single.Do(path, func() (interface{}, error) {
+		p := &Package{
+			Path: path,
+			Error: func(err error) {
+				panic(err)
+			},
+			Universe: types.NewScope(nil, ""),
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+
+		pb, err := proto.NewParser(file).Parse()
+		if err != nil {
+			return nil, err
+		}
+		p.Proto = pb
+		p.Proto.Filename = path
+		if err := p.parse(); err != nil {
+			return nil, err
+		}
+		packages.Store(path, p)
+		return p, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
-
-	if runtime.GOOS == "windows" {
-		p.Path = strings.Replace(p.Path, "\\", "/", -1)
-	}
-
-	pb, err := proto.NewParser(file).Parse()
-	if err != nil {
-		return nil, err
-	}
-	p.Proto = pb
-	p.Proto.Filename = path
-	if err := p.parse(); err != nil {
-		return nil, err
-	}
-	mu.Lock()
-	packages[path] = p
-	mu.Unlock()
-	return p, nil
+	return pkg.(*Package), nil
 }
 
 func (pkg *Package) parse() error {
@@ -137,11 +138,13 @@ func (pkg *Package) Resolve() {
 }
 
 func (pkg *Package) lookup(s string) *Package {
-	mu.RLock()
-	defer mu.RUnlock()
 	for _, imp := range pkg.Imported {
-		if packages[imp].Package == s {
-			return packages[imp]
+		val, ok := packages.Load(imp)
+		if !ok {
+			continue
+		}
+		if val.(*Package).Package == s {
+			return val.(*Package)
 		}
 	}
 	return nil
@@ -166,9 +169,8 @@ func (pkg *Package) errorf(format string, args ...interface{}) {
 }
 
 func RangePackage(f func(pkg *Package)) {
-	mu.RLock()
-	defer mu.RUnlock()
-	for _, imp := range packages {
-		f(imp)
-	}
+	packages.Range(func(_, value interface{}) bool {
+		f(value.(*Package))
+		return true
+	})
 }
