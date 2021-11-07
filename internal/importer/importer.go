@@ -14,7 +14,11 @@ import (
 	"github.com/wdvxdr1123/yaproto/internal/types"
 )
 
-var Packages = make(map[string]*Package)
+var (
+	mu       = sync.RWMutex{}
+	packages = make(map[string]*Package)
+)
+
 var ProtoPath = ""
 
 type Package struct {
@@ -35,7 +39,7 @@ type Package struct {
 }
 
 func Import(path string) (*Package, error) {
-	if pkg, ok := Packages[path]; ok {
+	if pkg, ok := packages[path]; ok {
 		return pkg, nil
 	}
 
@@ -65,7 +69,9 @@ func Import(path string) (*Package, error) {
 	if err := p.parse(); err != nil {
 		return nil, err
 	}
-	Packages[path] = p
+	mu.Lock()
+	packages[path] = p
+	mu.Unlock()
 	return p, nil
 }
 
@@ -131,9 +137,11 @@ func (pkg *Package) Resolve() {
 }
 
 func (pkg *Package) lookup(s string) *Package {
+	mu.RLock()
+	defer mu.RUnlock()
 	for _, imp := range pkg.Imported {
-		if Packages[imp].Package == s {
-			return Packages[imp]
+		if packages[imp].Package == s {
+			return packages[imp]
 		}
 	}
 	return nil
@@ -155,4 +163,12 @@ func (pkg *Package) error(err error) {
 
 func (pkg *Package) errorf(format string, args ...interface{}) {
 	pkg.error(errors.New(fmt.Sprintf(format, args...)))
+}
+
+func RangePackage(f func(pkg *Package)) {
+	mu.RLock()
+	defer mu.RUnlock()
+	for _, imp := range packages {
+		f(imp)
+	}
 }

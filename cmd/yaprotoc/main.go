@@ -28,6 +28,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	if runtime.GOOS == "windows" {
+		wd = strings.Replace(wd, "\\", "/", -1)
+	}
 	flag.Parse()
 
 	group := errgroup.Group{}
@@ -57,13 +60,7 @@ func main() {
 		return
 	}
 
-	all := make([]*importer.Package, 0)
-	for _, p := range importer.Packages {
-		all = append(all, p)
-	}
-
-	for _, p := range all {
-		pkg := p
+	importer.RangePackage(func(pkg *importer.Package) {
 		group.Go(func() error {
 			pkg.Resolve()
 			g := generator.New(pkg)
@@ -71,9 +68,6 @@ func main() {
 			g.Options.GenMarshal = *marshal
 			g.Options.GenSize = *size || *marshal > 1
 
-			if runtime.GOOS == "windows" {
-				wd = strings.Replace(wd, "\\", "/", -1)
-			}
 			outputPath := path.Clean(path.Join(wd, *output, pkg.OutputPath))
 
 			filename := strings.TrimSuffix(pkg.Path, ".proto")
@@ -96,7 +90,7 @@ func main() {
 			g.Generate(out)
 			return out.Close()
 		})
-	}
+	})
 	err = group.Wait()
 	if err != nil {
 		println(err.Error())
