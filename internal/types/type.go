@@ -10,65 +10,10 @@ const (
 	CEnum
 )
 
-var _, _, _ = CScalar, CMessage, CEnum
-
 type Type interface {
 	GoType() string
 	Name() string
-	Scope() Class
-}
-
-type ScalarValueType struct {
-	name   string
-	gotype string
-	wire   string
-}
-
-func (b ScalarValueType) GoType() string {
-	return b.gotype
-}
-
-func (b ScalarValueType) Name() string {
-	return b.name
-}
-
-func (b ScalarValueType) Scope() Class {
-	return CScalar
-}
-
-var _ Type = ScalarValueType{}
-var _ Type = &ScalarValueType{}
-
-func (b ScalarValueType) WireType() Wire {
-	switch b.wire {
-	case "fixed32":
-		return WireFixed32
-	case "fixed64":
-		return WireFixed64
-	case "varint", "zigzag32", "zigzag64":
-		return WireVarint
-	case "bytes":
-		return WireBytes
-	}
-	panic("unknown wire type")
-}
-
-const (
-	TUINT64 = 3
-)
-
-var ScalarValueTypes = [...]ScalarValueType{
-	{"int32", "int32", "varint"},
-	{"uint32", "uint32", "varint"},
-	{"int64", "int64", "varint"},
-	{"uint64", "uint64", "varint"},
-	{"sint32", "int32", "zigzag32"},
-	{"sint64", "int64", "zigzag64"},
-	{"float32", "float32", "fixed32"},
-	{"float64", "float64", "fixed64"},
-	{"bool", "bool", "varint"},
-	{"bytes", "[]byte", "bytes"},
-	{"string", "string", "bytes"},
+	ScopeClass() Class
 }
 
 type MessageType struct {
@@ -84,7 +29,7 @@ func (m *MessageType) Name() string {
 	return m.name
 }
 
-func (m *MessageType) Scope() Class {
+func (m *MessageType) ScopeClass() Class {
 	return CMessage
 }
 
@@ -102,7 +47,7 @@ func (e *EnumType) Name() string {
 	return e.name
 }
 
-func (e *EnumType) Scope() Class {
+func (e *EnumType) ScopeClass() Class {
 	return CEnum
 }
 
@@ -111,7 +56,7 @@ type ImportedType struct {
 	Gotype   string
 }
 
-func (i *ImportedType) Scope() Class {
+func (i *ImportedType) ScopeClass() Class {
 	return CMessage
 }
 

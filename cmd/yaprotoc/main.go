@@ -54,7 +54,7 @@ func main() {
 				return err
 			}
 			p.Error = func(err error) {
-				println(err)
+				println(err.Error())
 			}
 			return nil
 		})
@@ -66,17 +66,17 @@ func main() {
 		return
 	}
 
-	importer.RangePackage(func(pkg *importer.Package) {
+	importer.RangePackage(func(file *importer.File) {
 		group.Go(func() error {
-			pkg.Resolve()
-			g := generator.New(pkg)
+			file.Resolve()
+			g := generator.New(file)
 			g.Options.GenGetter = *getter
 			g.Options.GenMarshal = *marshal
 			g.Options.GenSize = *size || *marshal > 1
 
-			outputPath := path.Clean(path.Join(wd, *output, pkg.OutputPath))
+			outputPath := path.Clean(path.Join(wd, *output, file.Package.GoOutPath))
 
-			filename := strings.TrimSuffix(pkg.Path, ".proto")
+			filename := strings.TrimSuffix(file.Path, ".proto")
 			dot := strings.LastIndexByte(filename, '/')
 			if dot > 0 {
 				filename = filename[dot+1:]

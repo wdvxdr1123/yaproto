@@ -1,12 +1,13 @@
 package types
 
 import (
+	"text/scanner"
+
 	"github.com/wdvxdr1123/yaproto/internal/utils"
 )
 
 type Object struct {
-	Name string
-	Obj  protoObject
+	Obj protoObject
 }
 
 func (o *Object) GoType() string {
@@ -22,11 +23,22 @@ func (o *Object) GoType() string {
 
 type protoObject interface {
 	aObj()
+	Pos() scanner.Position
 }
 
-type object struct{}
+type object struct {
+	pos scanner.Position
+}
 
 func (o *object) aObj() {}
+
+func (o *object) SetPos(pos scanner.Position) {
+	o.pos = pos
+}
+
+func (o *object) Pos() scanner.Position {
+	return o.pos
+}
 
 type Message struct {
 	object

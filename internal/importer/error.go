@@ -6,10 +6,14 @@ import (
 )
 
 type Error struct {
-	Pos scanner.Position
-	Err error
+	File string
+	Pos  scanner.Position
+	Err  error
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("%d:%d: %v", e.Pos.Line, e.Pos.Column, e.Err)
+	if e.File != "" {
+		e.Pos.Filename = e.File
+	}
+	return fmt.Sprintf("%s: %v", e.Pos.String(), e.Err)
 }

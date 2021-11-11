@@ -13,7 +13,7 @@ func (g *Generator) size(m *types.Message) {
 	g.Pln("    _ = l")
 
 	for _, field := range m.Fields {
-		switch field.Type.Scope() {
+		switch field.Type.ScopeClass() {
 		case types.CScalar:
 			g.sizeBuiltin(field)
 		case types.CMessage:

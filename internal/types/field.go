@@ -53,7 +53,7 @@ func (f *MessageField) GoType() string {
 
 // Ftype is type of the field in struct field definition
 func (f *MessageField) Ftype() (s string) {
-	switch f.Type.Scope() {
+	switch f.Type.ScopeClass() {
 	case CMessage:
 		s = "*" + f.GoType()
 	case CScalar, CEnum:
@@ -76,7 +76,7 @@ func (f *MessageField) Rtype() string {
 	if f.Flag == FRepeated {
 		return f.Ftype()
 	}
-	switch f.Type.Scope() {
+	switch f.Type.ScopeClass() {
 	case CMessage:
 		return "*" + f.GoType()
 	case CScalar, CEnum:
@@ -94,15 +94,16 @@ func (f *MessageField) Elem() *MessageField {
 	return f
 }
 
-// null returns the null value of the field.
+// Null returns the null value of the field.
 func (f *MessageField) Null() string {
 	if f.IsRepeated() || f.IsPtr() {
 		return "nil"
 	}
-	switch f.Type.Scope() {
+	switch f.Type.ScopeClass() {
 	case CScalar:
 		switch f.Type.Name() {
-		case "int32", "uint32", "int64", "uint64", "sint32", "sint64":
+		case "int32", "uint32", "int64", "uint64",
+			"sint32", "sint64", "fixed32", "fixed64":
 			return "0"
 		case "float32", "float64":
 			return "0.0"
@@ -123,7 +124,7 @@ func (f *MessageField) Null() string {
 
 func (f *MessageField) Selector(deref bool) string {
 	x := "x." + f.GoName()
-	if deref && f.Type.Scope() != CMessage && f.IsPtr() {
+	if deref && f.Type.ScopeClass() != CMessage && f.IsPtr() {
 		x = "*" + x
 	}
 	return x

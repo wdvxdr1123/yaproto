@@ -7,11 +7,11 @@ import (
 )
 
 type Scope struct {
-	name     string
+	name string
+
 	parent   *Scope
 	Children []*Scope
-
-	Elems map[string]*Object
+	Elems    map[string]*Object
 }
 
 func NewScope(parent *Scope, name string) *Scope {
@@ -26,13 +26,28 @@ func NewScope(parent *Scope, name string) *Scope {
 	return s
 }
 
+func (s *Scope) Copy(parent *Scope) *Scope {
+	c := &Scope{
+		name:     s.name,
+		parent:   parent,
+		Children: make([]*Scope, len(s.Children)),
+		Elems:    make(map[string]*Object),
+	}
+	for i, child := range s.Children {
+		c.Children[i] = child.Copy(c)
+	}
+	for k, v := range s.Elems {
+		c.Elems[k] = v
+	}
+	return c
+}
+
 func (s *Scope) Lookup(name string) *Object {
 	m, ok := s.LookupOK(name)
 	if ok {
 		return m
 	}
 	obj := new(Object)
-	obj.Name = name
 	s.Elems[name] = obj
 	return obj
 }

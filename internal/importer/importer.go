@@ -21,31 +21,28 @@ var (
 
 var ProtoPath = ""
 
-type Package struct {
-	Path    string
-	Package string
-	Error   func(err error)
+type File struct {
+	Path  string
+	Proto *proto.Proto
 
-	Proto      *proto.Proto
-	Imported   []string
-	GoPackage  string
-	OutputPath string
-	Version    int
-	Universe   *types.Scope
+	Version  int
+	Universe *types.Scope
+	Package  *types.Package
+	Imports  []*types.Package
+	Error    func(err error)
 
 	once    sync.Once
 	delayed []func()
-	pos     scanner.Position
 }
 
-func Import(path string) (*Package, error) {
+func Import(path string) (*File, error) {
 	pkg, ok := packages.Load(path)
 	if ok {
-		return pkg.(*Package), nil
+		return pkg.(*File), nil
 	}
 
 	pkg, err, _ := single.Do(path, func() (interface{}, error) {
-		p := &Package{
+		p := &File{
 			Path: path,
 			Error: func(err error) {
 				panic(err)
@@ -64,113 +61,165 @@ func Import(path string) (*Package, error) {
 		}
 		p.Proto = pb
 		p.Proto.Filename = path
-		if err := p.parse(); err != nil {
-			return nil, err
-		}
+		p.parse()
 		packages.Store(path, p)
 		return p, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return pkg.(*Package), nil
+	return pkg.(*File), nil
 }
 
-func (pkg *Package) parse() error {
-	for _, elem := range pkg.Proto.Elements {
+func (file *File) parse() {
+	pkg := new(types.Package)
+	var gopkgpos scanner.Position
+	for _, elem := range file.Proto.Elements {
 		switch elem := elem.(type) {
 		case *proto.Package:
-			pkg.Package = elem.Name
+			pkg.Name = elem.Name
 		case *proto.Syntax:
-			pkg.setPos(elem.Position)
 			switch elem.Value {
 			case "proto3":
-				pkg.Version = 3
+				file.Version = 3
 			case "proto2":
-				pkg.Version = 2
+				file.Version = 2
 			default:
-				pkg.errorf("unsupported syntax version: %s", elem.Value)
+				file.errorf(elem.Position, "unsupported syntax version: %s", elem.Value)
 			}
 		case *proto.Option:
 			if elem.Name == "go_package" {
-				gopkg := elem.Constant.Source
-				for i, str := range strings.Split(gopkg, ";") {
+				gopkgpos = elem.Position
+				for i, str := range strings.Split(elem.Constant.Source, ";") {
 					switch i {
 					case 0:
-						pkg.OutputPath = str
+						pkg.GoOutPath = str
 					case 1:
 						pkg.GoPackage = str
 					}
 				}
 			}
 		case *proto.Import:
-			_, err := Import(elem.Filename)
+			ipkg, err := Import(elem.Filename)
 			if err != nil {
-				pkg.error(err)
+				file.error(elem.Position, err)
 			}
-			pkg.Imported = append(pkg.Imported, elem.Filename)
+			if pkg.Name == "" {
+				file.errorf(elem.Position, "import an unnamed package: %s", elem.Filename)
+			}
+			file.Imports = append(file.Imports, ipkg.Package)
 		}
 	}
 
-	for _, elem := range pkg.Proto.Elements {
+	if pkg.Name != "" {
+		file.Package = types.LookupPkg(pkg.Name)
+		func() {
+			file.Package.Lock()
+			defer file.Package.Unlock()
+			switch file.Package.GoPackage {
+			case pkg.GoPackage:
+				// ok
+			case "":
+				file.Package.GoPackage = pkg.GoPackage
+			default:
+				file.errorf(gopkgpos, "same package has different go package: %s and %s", pkg.GoPackage, file.Package.GoPackage)
+			}
+			switch file.Package.GoOutPath {
+			case pkg.GoOutPath:
+				// ok
+			case "":
+				file.Package.GoOutPath = pkg.GoOutPath
+			default:
+				file.errorf(gopkgpos, "same package has different go output path: %s and %s", pkg.GoOutPath, file.Package.GoOutPath)
+			}
+		}()
+	} else {
+		file.Package = pkg
+	}
+
+	for _, elem := range file.Proto.Elements {
 		switch elem := elem.(type) {
 		case *proto.Message:
-			pkg.parseMessage(elem, pkg.Universe)
+			file.parseMessage(elem, file.Universe)
 		case *proto.Enum:
-			pkg.parseEnum(elem, pkg.Universe)
+			file.parseEnum(elem, file.Universe)
 		}
 	}
-	return nil
+
+	// merge all scope to package's scope
+	if pkg.Name != "" {
+		file.Package.Lock()
+		defer file.Package.Unlock()
+		target := file.Package.Scope
+		for name, obj := range file.Universe.Elems {
+			if _, ok := target.LookupOK(name); ok {
+				file.errorf(obj.Obj.Pos(), "duplicate symbol: %s", name)
+				return
+			}
+			target.Elems[name] = obj
+		}
+		for _, child := range file.Universe.Children {
+			target.Children = append(target.Children, child.Copy(target))
+		}
+	}
+
+	return
 }
 
-func (pkg *Package) later(f func()) {
-	pkg.delayed = append(pkg.delayed, f)
+func (file *File) later(fn func()) {
+	file.delayed = append(file.delayed, fn)
 }
 
-func (pkg *Package) Resolve() {
-	pkg.once.Do(func() {
-		for len(pkg.delayed) > 0 {
-			f := pkg.delayed[0]
-			pkg.delayed = pkg.delayed[1:]
-			f()
+func (file *File) Resolve() {
+	file.once.Do(func() {
+		// delete self import
+		var j int
+		for i, t := range file.Imports {
+			if t == file.Package {
+				continue
+			}
+			if i != j {
+				file.Imports[j] = t
+			}
+			j++
+		}
+		file.Imports = file.Imports[:j]
+
+		for len(file.delayed) > 0 {
+			fn := file.delayed[0]
+			file.delayed = file.delayed[1:]
+			fn()
 		}
 	})
 }
 
-func (pkg *Package) lookup(s string) *Package {
-	for _, imp := range pkg.Imported {
-		val, ok := packages.Load(imp)
-		if !ok {
-			continue
-		}
-		if val.(*Package).Package == s {
-			return val.(*Package)
+func (file *File) lookup(s string) *types.Package {
+	for _, pkg := range file.Imports {
+		if pkg.Name == s {
+			return pkg
 		}
 	}
 	return nil
 }
 
-func (pkg *Package) setPos(pos scanner.Position) {
-	pkg.pos = pos
-}
-
-func (pkg *Package) error(err error) {
+func (file *File) error(pos scanner.Position, err error) {
 	e := &Error{
-		Pos: pkg.pos,
-		Err: err,
+		File: file.Path,
+		Pos:  pos,
+		Err:  err,
 	}
-	if pkg.Error != nil {
-		pkg.Error(e)
+	if file.Error != nil {
+		file.Error(e)
 	}
 }
 
-func (pkg *Package) errorf(format string, args ...interface{}) {
-	pkg.error(errors.New(fmt.Sprintf(format, args...)))
+func (file *File) errorf(pos scanner.Position, format string, args ...interface{}) {
+	file.error(pos, errors.New(fmt.Sprintf(format, args...)))
 }
 
-func RangePackage(f func(pkg *Package)) {
+func RangePackage(f func(pkg *File)) {
 	packages.Range(func(_, value interface{}) bool {
-		f(value.(*Package))
+		f(value.(*File))
 		return true
 	})
 }
